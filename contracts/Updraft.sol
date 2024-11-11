@@ -4,9 +4,9 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import {ICrowdFund} from "interfaces/ICrowdFund.sol";
-import {Idea} from "Idea.sol";
-import {Solution} from "Solution.sol";
+import {ICrowdFund} from "./interfaces/ICrowdFund.sol";
+import {Idea} from "./Idea.sol";
+import {Solution} from "./Solution.sol";
 
 contract Updraft is Ownable, ICrowdFund {
     using SafeERC20 for IERC20;
