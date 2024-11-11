@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.27;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -8,7 +8,7 @@ import {ICrowdFund} from "./interfaces/ICrowdFund.sol";
 import {Idea} from "./Idea.sol";
 import {Solution} from "./Solution.sol";
 
-contract Updraft is Ownable, ICrowdFund {
+contract Updraft is Ownable(msg.sender), ICrowdFund {
     using SafeERC20 for IERC20;
 
     uint256 public constant percentScale = 1000000;
@@ -19,28 +19,28 @@ contract Updraft is Ownable, ICrowdFund {
     uint256 public accrualRate;
     uint256 public cycleLength;
 
-    event ProfileUpdated(address indexed owner, bytes32 data);
+    event ProfileUpdated(address indexed owner, bytes data);
     event IdeaCreated(
         address indexed idea,
         address indexed creator,
         uint256 contributorFee,
         uint256 contribution,
-        bytes32 data
+        bytes data
     );
     event SolutionCreated(
         string indexed _ideaId,
-        address indexed solution,
+        Solution indexed solution,
         address indexed creator,
         string ideaId,
-        address token,
+        IERC20 fundingToken,
         uint256 stake,
         uint256 goal,
         uint256 deadline,
         uint256 contributorFee,
-        bytes32 data
+        bytes data
     );
 
-    constructor(IERC20 feeToken_, minFee_, percentFee_, cycleLength_, accrualRate_){
+    constructor(IERC20 feeToken_, uint256 minFee_, uint256 percentFee_, uint256 cycleLength_, uint256 accrualRate_){
         feeToken = feeToken_;
         minFee = minFee_;
         percentFee = percentFee_;
@@ -82,7 +82,7 @@ contract Updraft is Ownable, ICrowdFund {
 
     function createSolution(
         string calldata ideaId,
-        IERC20 token,
+        IERC20 fundingToken,
         uint256 stake,
         uint256 goal,
         uint256 deadline,
@@ -90,13 +90,13 @@ contract Updraft is Ownable, ICrowdFund {
         bytes calldata solutionData
     ) external {
         feeToken.safeTransferFrom(msg.sender, address(0), minFee);
-        Solution solution = new Solution(msg.sender,token, feeToken, goal, deadline, contributorFee);
+        Solution solution = new Solution(msg.sender, fundingToken, feeToken, goal, deadline, contributorFee);
         emit SolutionCreated(
             ideaId,
             solution,
             msg.sender,
             ideaId,
-            token,
+            fundingToken,
             stake,
             goal,
             deadline,
@@ -126,7 +126,7 @@ contract Updraft is Ownable, ICrowdFund {
     /// @dev This code isn't DRY, but we want to use calldata to save gas.
     function createSolutionWithProfile(
         string calldata ideaId,
-        IERC20 token,
+        IERC20 fundingToken,
         uint256 stake,
         uint256 goal,
         uint256 deadline,
@@ -135,13 +135,13 @@ contract Updraft is Ownable, ICrowdFund {
         bytes calldata profileData
     ) external {
         feeToken.safeTransferFrom(msg.sender, address(0), minFee);
-        Solution solution = new Solution(msg.sender,token, feeToken, goal, deadline, contributorFee);
+        Solution solution = new Solution(msg.sender, fundingToken, feeToken, goal, deadline, contributorFee);
         emit SolutionCreated(
             ideaId,
             solution,
             msg.sender,
             ideaId,
-            token,
+            fundingToken,
             stake,
             goal,
             deadline,

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.27;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -92,7 +92,7 @@ contract Idea {
     }
 
     constructor(uint256 contributorFee_) {
-        crowdFund = msg.sender;
+        crowdFund = ICrowdFund(msg.sender);
         startTime = block.timestamp;
 
         contributorFee = contributorFee_;
@@ -377,5 +377,9 @@ contract Idea {
                 }
             } // end else (Add a new cycle...)
         } // end else (Not the first contribution.)
+    }
+
+    function max(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a > b ? a : b;
     }
 }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.27;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -36,6 +36,7 @@ contract Solution is Ownable {
     uint256 public tokensWithdrawn;
     uint256 public stake;
     uint256 public fundingGoal;
+    uint256 public deadline;
 
     Cycle[] public cycles;
 
@@ -51,7 +52,7 @@ contract Solution is Ownable {
     event StakeAdded(address indexed addr, uint256 amount, uint256 totalStake);
     event StakeRemoved(address indexed addr, uint256 amount, uint256 totalStake);
     event Refunded(address indexed addr, uint256 amount, uint256 stakeAwarded);
-    event SolutionUpdated(bytes32 data);
+    event SolutionUpdated(bytes data);
     event GoalExtended(uint256 goal, uint256 deadline);
     event Contributed(
         address indexed addr,
@@ -117,16 +118,17 @@ contract Solution is Ownable {
 
     constructor(
         address owner,
-        IERC20 fundingToken,
-        IERC20 stakingToken,
+        IERC20 fundingToken_,
+        IERC20 stakingToken_,
         uint256 goal,
         uint256 deadline_,
         uint256 contributorFee_
     ) Ownable(owner){
-        crowdFund = msg.sender;
+        crowdFund = ICrowdFund(msg.sender);
         startTime = block.timestamp;
 
-        fundingToken = fundingToken;
+        fundingToken = fundingToken_;
+        stakingToken = stakingToken_;
         fundingGoal = goal;
         deadline = deadline_;
         contributorFee = contributorFee_;
@@ -175,7 +177,8 @@ contract Solution is Ownable {
             Position({
                 contribution: amount,
                 startCycleIndex: lastStoredCycleIndex,
-                lastCollectedCycleIndex: lastStoredCycleIndex
+                lastCollectedCycleIndex: lastStoredCycleIndex,
+                refunded: false
             })
         );
 
@@ -198,7 +201,7 @@ contract Solution is Ownable {
         emit StakeAdded(addr,amount, stake);
     }
 
-    function removeStake(uint256 amount) goalReached {
+    function removeStake(uint256 amount) external goalReached {
         address addr = msg.sender;
         if(stakes[addr] < amount) revert WithdrawMoreThanAvailable();
 
@@ -240,14 +243,14 @@ contract Solution is Ownable {
     }
 
     /// Extend the goal and the deadline. Also update the Solution data.
-    function extendGoal(uint256 goal, uint256 deadline_, bytes solutionData) external onlyOwner goalReached {
+    function extendGoal(uint256 goal, uint256 deadline_, bytes calldata solutionData) external onlyOwner goalReached {
             if (goal <= fundingGoal) revert GoalMustIncrease();
             if (deadline_ <= block.timestamp) revert MustSetDeadlineInFuture();
 
             fundingGoal = goal;
             deadline = deadline_;
             emit GoalExtended(goal, deadline);
-            emit SolutionUpdated(data);
+            emit SolutionUpdated(solutionData);
     }
 
     /// Collect fees for the only position
@@ -339,7 +342,7 @@ contract Solution is Ownable {
         if (position.refunded) revert AlreadyRefunded();
         if (goalFailed()) {
             position.refunded = true;
-            positionShares = accrualRate * position.contribution
+            uint256 positionShares = accrualRate * position.contribution
                 * (currentCycleNumber() - cycles[position.startCycleIndex].number) / percentScale;
             uint256 stakeAward = stake * positionShares / totalShares();
 
@@ -396,7 +399,8 @@ contract Solution is Ownable {
                 Position({
                     contribution: amount,
                     startCycleIndex: position.startCycleIndex,
-                    lastCollectedCycleIndex: position.lastCollectedCycleIndex
+                    lastCollectedCycleIndex: position.lastCollectedCycleIndex,
+                    refunded: false
                 })
             );
             unchecked {
@@ -443,7 +447,8 @@ contract Solution is Ownable {
             startIndex = position.lastCollectedCycleIndex + 1; // can't realistically overflow
         }
 
-        shares = accrualRate * (cycle[position.lastCollectedCycleIndex].number - cycle[position.startCycleIndex].number)
+        shares = accrualRate
+            * (cycles[position.lastCollectedCycleIndex].number - cycles[position.startCycleIndex].number)
             * contribution / percentScale;
 
         for (uint256 i = startIndex; i <= lastStoredCycleIndex;) {
