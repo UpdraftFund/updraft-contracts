@@ -77,13 +77,13 @@ contract Solution is Ownable {
 
     error PositionDoesNotExist();
     error NotOnlyPosition();
-    error SplitAmountSpecifiedMoreThanAvailable();
-    error GoalNotReached();
+    error SplitAmountMoreThanPosition(uint256 amount, uint256 positionAmount);
+    error GoalNotReached(uint256 contributed, uint256 goal);
     error GoalFailed();
     error GoalNotFailed();
-    error GoalMustIncrease();
-    error MustSetDeadlineInFuture();
-    error WithdrawMoreThanAvailable();
+    error GoalMustIncrease(uint256 oldGoal, uint256 newGoal);
+    error MustSetDeadlineInFuture(uint256 deadline);
+    error WithdrawMoreThanAvailable(uint256 amount, uint256 available);
     error AlreadyRefunded();
 
     modifier singlePosition(address addr) {
@@ -111,7 +111,7 @@ contract Solution is Ownable {
     }
 
     modifier goalReached {
-        if (tokensContributed < fundingGoal) revert GoalNotReached();
+        if (tokensContributed < fundingGoal) revert GoalNotReached(tokensContributed, fundingGoal);
 
         _;
     }
@@ -203,7 +203,7 @@ contract Solution is Ownable {
 
     function removeStake(uint256 amount) external goalReached {
         address addr = msg.sender;
-        if(stakes[addr] < amount) revert WithdrawMoreThanAvailable();
+        if (amount > stakes[addr]) revert WithdrawMoreThanAvailable(amount, stakes[addr]);
 
         stake -= amount;
         stakes[addr] -= amount;
@@ -219,14 +219,14 @@ contract Solution is Ownable {
             fundingToken.safeTransfer(to, amount);
             emit FundsWithdrawn(to, amount);
         } else {
-            revert WithdrawMoreThanAvailable();
+            revert WithdrawMoreThanAvailable(amount, tokensLeft);
         }
     }
 
     /// Extend the goal, keeping the deadline the same.
     function extendGoal(uint256 goal) external onlyOwner goalReached {
-            if (goal <= fundingGoal) revert GoalMustIncrease();
-            if (deadline <= block.timestamp) revert MustSetDeadlineInFuture();
+            if (goal <= fundingGoal) revert GoalMustIncrease(fundingGoal, goal);
+            if (deadline <= block.timestamp) revert MustSetDeadlineInFuture(deadline);
 
             fundingGoal = goal;
             emit GoalExtended(goal, deadline);
@@ -234,8 +234,8 @@ contract Solution is Ownable {
 
     /// Extend the goal and the deadline.
     function extendGoal(uint256 goal, uint256 deadline_) external onlyOwner goalReached {
-            if (goal <= fundingGoal) revert GoalMustIncrease();
-            if (deadline_ <= block.timestamp) revert MustSetDeadlineInFuture();
+            if (goal <= fundingGoal) revert GoalMustIncrease(fundingGoal, goal);
+            if (deadline_ <= block.timestamp) revert MustSetDeadlineInFuture(deadline);
 
             fundingGoal = goal;
             deadline = deadline_;
@@ -244,8 +244,8 @@ contract Solution is Ownable {
 
     /// Extend the goal and the deadline. Also update the Solution data.
     function extendGoal(uint256 goal, uint256 deadline_, bytes calldata solutionData) external onlyOwner goalReached {
-            if (goal <= fundingGoal) revert GoalMustIncrease();
-            if (deadline_ <= block.timestamp) revert MustSetDeadlineInFuture();
+            if (goal <= fundingGoal) revert GoalMustIncrease(fundingGoal, goal);
+            if (deadline_ <= block.timestamp) revert MustSetDeadlineInFuture(deadline);
 
             fundingGoal = goal;
             deadline = deadline_;
@@ -388,7 +388,7 @@ contract Solution is Ownable {
         Position storage position = positions[positionIndex];
 
         uint256 deductAmount = amount * numSplits;
-        if (deductAmount > position.contribution) revert SplitAmountSpecifiedMoreThanAvailable();
+        if (deductAmount > position.contribution) revert SplitAmountMoreThanPosition(deductAmount, position.contribution);
 
         unchecked {
             position.contribution -= deductAmount;

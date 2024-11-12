@@ -58,10 +58,10 @@ contract Idea {
         uint256 amountPerNewPosition
     );
 
-    error ContributionLessThanMinFee();
+    error ContributionLessThanMinFee(uint256 contribution, uint256 minFee);
     error PositionDoesNotExist();
     error NotOnlyPosition();
-    error SplitAmountSpecifiedMoreThanAvailable();
+    error SplitAmountMoreThanPosition(uint256 amount, uint256 positionAmount);
 
     modifier singlePosition(address addr) {
         uint256 numPositions = positionsByAddress[addr].length;
@@ -118,7 +118,7 @@ contract Idea {
 
     /// @return positionIndex will be reused as input to withdraw(), checkPosition(), and other functions
     function contribute(uint256 amount) external returns (uint256 positionIndex) {
-        if (amount < minFee) revert ContributionLessThanMinFee();
+        if (amount < minFee) revert ContributionLessThanMinFee(amount, minFee);
 
         address addr = msg.sender;
 
@@ -267,7 +267,7 @@ contract Idea {
         Position storage position = positions[positionIndex];
 
         uint256 deductAmount = amount * numSplits;
-        if (deductAmount > position.tokens) revert SplitAmountSpecifiedMoreThanAvailable();
+        if (deductAmount > position.tokens) revert SplitAmountMoreThanPosition(deductAmount, position.tokens);
 
         unchecked {
             position.tokens -= deductAmount;
