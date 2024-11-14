@@ -5,6 +5,9 @@ node_modules
 /cache
 /artifacts
 
+# API Keys
+apiKeys.json
+
 # TypeChain files
 /typechain
 /typechain-types
