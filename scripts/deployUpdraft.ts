@@ -5,7 +5,7 @@ import { networks } from './addresses.json';
 
 async function deploy(network) {
   const feeToken = networks[network].UPDToken;
-  const minFee = parseUnits('1', 18); // 1 UPDT
+  const minFee = parseUnits('1', 18); // 1 UPD
   //  100% is 1000000 (percentScale is 1000000 in Updraft.sol)
   const percentFee = 10000; // 1%
   const accrualRate = 1000; // 0.1%
