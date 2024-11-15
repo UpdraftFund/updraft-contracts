@@ -2,7 +2,7 @@ import type { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox-viem";
 import "@truffle/dashboard-hardhat-plugin";
 
-import { etherscan as etherscanKey } from "./apiKeys.json";
+import { etherscan } from "./apiKeys.json";
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -15,10 +15,10 @@ const config: HardhatUserConfig = {
     }
   },
   etherscan: {
-    apiKey: etherscanKey
+    apiKey: etherscan
   },
   sourcify: {
-    enabled: true
+    enabled: false
   },
   defaultNetwork: "truffleDashboard",
 };

@@ -1,0 +1,23 @@
+{
+  "networks": {
+    "sepolia":
+    {
+      "UPDToken": "0xb9Ebc1E9B81885B065434EbBad31ff5380b59688",
+      "blockTime": 15000
+    },
+    "arbitrumSepolia":
+    {
+      "UPDToken": "0x9372861C690Df46F7c224EF9d24a964A6CdCd46f",
+      "blockTime": 250
+    },
+    "arbitrum":
+    {
+      "UPDToken": "0x0",
+      "blockTime": 500
+    },
+    "mainnet":
+    {
+      "blockTime": 20000
+    }
+  }
+}
