@@ -1,6 +1,6 @@
-import type { HardhatUserConfig } from "hardhat/config";
-import "@nomicfoundation/hardhat-toolbox-viem";
-import "@truffle/dashboard-hardhat-plugin";
+import type { HardhatUserConfig } from 'hardhat/config';
+import '@nomicfoundation/hardhat-toolbox-viem';
+import '@truffle/dashboard-hardhat-plugin';
 
 import { etherscan } from "./apiKeys.json";
 
@@ -19,8 +19,7 @@ const config: HardhatUserConfig = {
   },
   sourcify: {
     enabled: false
-  },
-  defaultNetwork: "truffleDashboard",
+  }
 };
 
 export default config;
