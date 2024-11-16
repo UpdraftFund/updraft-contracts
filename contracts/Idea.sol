@@ -123,6 +123,7 @@ contract Idea {
         if (amount < minFee) revert ContributionLessThanMinFee(amount, minFee);
 
         address addr = msg.sender;
+        uint256 originalAmount = amount;
 
         // Anti-spam fee
         uint256 fee = max(minFee, amount * percentFee / percentScale);
@@ -133,7 +134,6 @@ contract Idea {
 
         updateCyclesAddingAmount(amount, _contributorFee);
 
-        uint256 originalAmount = amount;
         uint256 lastStoredCycleIndex;
 
         unchecked {
