@@ -22,17 +22,16 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
 
     event ProfileUpdated(address indexed owner, bytes data);
     event IdeaCreated(
-        address indexed idea,
+        Idea indexed idea,
         address indexed creator,
         uint256 contributorFee,
         uint256 contribution,
         bytes data
     );
     event SolutionCreated(
-        string indexed _ideaId,
         Solution indexed solution,
         address indexed creator,
-        string ideaId,
+        address indexed idea,
         IERC20 fundingToken,
         uint256 stake,
         uint256 goal,
@@ -89,12 +88,13 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
 
     function createIdea(uint256 contributorFee, uint256 contribution, bytes calldata ideaData) external {
         Idea idea = new Idea(contributorFee, humanity);
-        emit IdeaCreated(address(idea), msg.sender, contributorFee, contribution, ideaData);
+        emit IdeaCreated(idea, msg.sender, contributorFee, contribution, ideaData);
         idea.contribute(contribution);
     }
 
+    /// @param idea The address of the Idea contract to which this solution refers. It can be on another chain.
     function createSolution(
-        string calldata ideaId,
+        address idea,
         IERC20 fundingToken,
         uint256 stake,
         uint256 goal,
@@ -105,10 +105,9 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
         feeToken.safeTransferFrom(msg.sender, humanity, minFee);
         Solution solution = new Solution(msg.sender, fundingToken, feeToken, goal, deadline, contributorFee);
         emit SolutionCreated(
-            ideaId,
             solution,
             msg.sender,
-            ideaId,
+            idea,
             fundingToken,
             stake,
             goal,
@@ -131,14 +130,15 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
     ) external {
         Idea idea = new Idea(contributorFee, humanity);
         idea.contribute(contribution);
-        emit IdeaCreated(address(idea), msg.sender, contributorFee, contribution, ideaData);
+        emit IdeaCreated(idea, msg.sender, contributorFee, contribution, ideaData);
         emit ProfileUpdated(msg.sender, profileData);
     }
 
     /// Create or update a profile while creating a solution to avoid paying `minFee` twice.
+    /// @param idea The address of the Idea contract to which this solution refers. It can be on another chain.
     /// @dev This code isn't DRY, but we want to use calldata to save gas.
     function createSolutionWithProfile(
-        string calldata ideaId,
+        address idea,
         IERC20 fundingToken,
         uint256 stake,
         uint256 goal,
@@ -150,10 +150,9 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
         feeToken.safeTransferFrom(msg.sender, humanity, minFee);
         Solution solution = new Solution(msg.sender, fundingToken, feeToken, goal, deadline, contributorFee);
         emit SolutionCreated(
-            ideaId,
             solution,
             msg.sender,
-            ideaId,
+            idea,
             fundingToken,
             stake,
             goal,
