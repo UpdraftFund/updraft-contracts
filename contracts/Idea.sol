@@ -29,6 +29,7 @@ contract Idea {
     uint256 public immutable percentScale;
     uint256 public immutable minFee;
     uint256 public immutable percentFee;
+    address public immutable humanity;
 
     /// @notice The total number of tokens in this Choice.
     /// @dev This should equal balanceOf(address(this)),
@@ -91,11 +92,12 @@ contract Idea {
         _;
     }
 
-    constructor(uint256 contributorFee_) {
+    constructor(uint256 contributorFee_, address humanity_) {
         crowdFund = ICrowdFund(msg.sender);
         startTime = block.timestamp;
 
         contributorFee = contributorFee_;
+        humanity = humanity_;
 
         cycleLength = crowdFund.cycleLength();
         accrualRate = crowdFund.accrualRate();
@@ -151,9 +153,7 @@ contract Idea {
         }
 
         token.safeTransferFrom(addr, address(this), originalAmount);
-
-        // Burn the anti-spam fee
-        token.safeTransferFrom(address(this), address(0), fee);
+        token.safeTransfer(humanity, fee);
 
         emit Contributed(addr, positionIndex, originalAmount, totalShares());
     }

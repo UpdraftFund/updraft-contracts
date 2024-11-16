@@ -18,6 +18,7 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
     uint256 public percentFee;
     uint256 public accrualRate;
     uint256 public cycleLength;
+    address public humanity;
 
     event ProfileUpdated(address indexed owner, bytes data);
     event IdeaCreated(
@@ -40,12 +41,20 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
         bytes data
     );
 
-    constructor(IERC20 feeToken_, uint256 minFee_, uint256 percentFee_, uint256 cycleLength_, uint256 accrualRate_){
+    constructor(
+        IERC20 feeToken_,
+        uint256 minFee_,
+        uint256 percentFee_,
+        uint256 cycleLength_,
+        uint256 accrualRate_,
+        address humanity_
+    ){
         feeToken = feeToken_;
         minFee = minFee_;
         percentFee = percentFee_;
         cycleLength = cycleLength_;
         accrualRate = accrualRate_;
+        humanity = humanity_;
     }
 
     function setFeeToken(IERC20 token) external onlyOwner {
@@ -68,14 +77,18 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
         accrualRate = rate;
     }
 
+    function setHumanity(address humanity_) external onlyOwner {
+        humanity = humanity_;
+    }
+
     /// Create or update a profile. It will be associated with the caller's address.
     function updateProfile(bytes calldata profileData) external {
-        feeToken.safeTransferFrom(msg.sender, address(0), minFee);
+        feeToken.safeTransferFrom(msg.sender, humanity, minFee);
         emit ProfileUpdated(msg.sender, profileData);
     }
 
     function createIdea(uint256 contributorFee, uint256 contribution, bytes calldata ideaData) external {
-        Idea idea = new Idea(contributorFee);
+        Idea idea = new Idea(contributorFee, humanity);
         emit IdeaCreated(address(idea), msg.sender, contributorFee, contribution, ideaData);
         idea.contribute(contribution);
     }
@@ -89,7 +102,7 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
         uint256 contributorFee,
         bytes calldata solutionData
     ) external {
-        feeToken.safeTransferFrom(msg.sender, address(0), minFee);
+        feeToken.safeTransferFrom(msg.sender, humanity, minFee);
         Solution solution = new Solution(msg.sender, fundingToken, feeToken, goal, deadline, contributorFee);
         emit SolutionCreated(
             ideaId,
@@ -116,7 +129,7 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
         bytes calldata ideaData,
         bytes calldata profileData
     ) external {
-        Idea idea = new Idea(contributorFee);
+        Idea idea = new Idea(contributorFee, humanity);
         idea.contribute(contribution);
         emit IdeaCreated(address(idea), msg.sender, contributorFee, contribution, ideaData);
         emit ProfileUpdated(msg.sender, profileData);
@@ -134,7 +147,7 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
         bytes calldata solutionData,
         bytes calldata profileData
     ) external {
-        feeToken.safeTransferFrom(msg.sender, address(0), minFee);
+        feeToken.safeTransferFrom(msg.sender, humanity, minFee);
         Solution solution = new Solution(msg.sender, fundingToken, feeToken, goal, deadline, contributorFee);
         emit SolutionCreated(
             ideaId,

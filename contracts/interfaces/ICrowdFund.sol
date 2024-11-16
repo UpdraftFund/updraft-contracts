@@ -26,4 +26,7 @@ interface ICrowdFund {
     /// `minFee` is the minimum fee (in `feeToken`) paid for creating or contributing to an Idea,
     /// and the only fee paid for creating Solutions and updating Profiles.
     function minFee() external view returns (uint256);
+
+    /// The fund that collects and distributes a universal dividend.
+    function humanity() external view returns (address);
 }
