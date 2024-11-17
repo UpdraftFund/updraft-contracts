@@ -136,9 +136,13 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
         bytes calldata profileData
     ) external {
         Idea idea = new Idea(contributorFee, humanity);
-        idea.contribute(contribution);
         emit IdeaCreated(idea, msg.sender, contributorFee, contribution, ideaData);
         emit ProfileUpdated(msg.sender, profileData);
+
+        feeToken.safeTransferFrom(msg.sender, address(this), contribution);
+        feeToken.approve(address(idea), contribution);
+        idea.contribute(contribution);
+        idea.transferPosition(msg.sender);
     }
 
     /// Create or update a profile while creating a solution to avoid paying `minFee` twice.
