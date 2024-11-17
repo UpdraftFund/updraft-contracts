@@ -120,7 +120,10 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
             solutionData
         );
         if (stake > 0){
+            fundingToken.safeTransferFrom(msg.sender, address(this), stake);
+            feeToken.approve(address(solution), stake);
             solution.addStake(stake);
+            solution.transferStake(msg.sender);
         }
     }
 
@@ -165,7 +168,10 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
             solutionData
         );
         if (stake > 0){
+            fundingToken.safeTransferFrom(msg.sender, address(this), stake);
+            feeToken.approve(address(solution), stake);
             solution.addStake(stake);
+            solution.transferStake(msg.sender);
         }
         emit ProfileUpdated(msg.sender, profileData);
     }

@@ -201,6 +201,13 @@ contract Solution is Ownable {
         emit StakeAdded(addr,amount, stake);
     }
 
+    function transferStake(address receiver) external{
+        address sender = msg.sender;
+        uint256 amount = stakes[sender];
+        stakes[sender] = 0;
+        stakes[receiver] += amount;
+    }
+
     function removeStake(uint256 amount) external goalReached {
         address addr = msg.sender;
         if (amount > stakes[addr]) revert WithdrawMoreThanAvailable(amount, stakes[addr]);
