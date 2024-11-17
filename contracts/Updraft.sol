@@ -89,7 +89,11 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
     function createIdea(uint256 contributorFee, uint256 contribution, bytes calldata ideaData) external {
         Idea idea = new Idea(contributorFee, humanity);
         emit IdeaCreated(idea, msg.sender, contributorFee, contribution, ideaData);
+
+        feeToken.safeTransferFrom(msg.sender, address(this), contribution);
+        feeToken.approve(address(idea), contribution);
         idea.contribute(contribution);
+        idea.transferPosition(msg.sender);
     }
 
     /// @param idea The address of the Idea contract to which this solution refers. It can be on another chain.
