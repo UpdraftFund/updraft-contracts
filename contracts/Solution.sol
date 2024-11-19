@@ -145,7 +145,7 @@ contract Solution is Ownable {
         return checkPosition(addr, 0);
     }
 
-    function positionsLength(address addr) external view returns (uint256) {
+    function numPositions(address addr) external view returns (uint256) {
         return positionsByAddress[addr].length;
     }
 
