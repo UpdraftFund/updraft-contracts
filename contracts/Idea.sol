@@ -43,20 +43,35 @@ contract Idea {
     /// transferPositions() and is returned by contribute().
     mapping(address => Position[]) public positionsByAddress;
 
-    event Withdrew(address indexed addr, uint256 positionIndex, uint256 amount, uint256 shares, uint256 totalShares);
-    event Contributed(address indexed addr, uint256 positionIndex, uint256 amount, uint256 totalShares);
+    event Withdrew(
+        address indexed addr,
+        uint256 positionIndex,
+        uint256 amount,
+        uint256 shares,
+        uint256 totalShares,
+        uint256 totalTokens
+    );
+    event Contributed(
+        address indexed addr,
+        uint256 positionIndex,
+        uint256 amount,
+        uint256 totalShares,
+        uint256 totalTokens
+    );
     event PositionTransferred(
         address indexed sender,
         address indexed recipient,
         uint256 senderPositionIndex,
-        uint256 recipientPositionIndex
+        uint256 recipientPositionIndex,
+        uint256 contribution
     );
     event Split(
         address indexed addr,
         uint256 originalPositionIndex,
         uint256 numNewPositions,
         uint256 firstNewPositionIndex,
-        uint256 amountPerNewPosition
+        uint256 contributionPerNewPosition,
+        uint256 contributionLeftInOriginal
     );
 
     error ContributionLessThanMinFee(uint256 contribution, uint256 minFee);
@@ -155,7 +170,7 @@ contract Idea {
         token.safeTransferFrom(addr, address(this), originalAmount);
         token.safeTransfer(humanity, fee);
 
-        emit Contributed(addr, positionIndex, originalAmount, totalShares());
+        emit Contributed(addr, positionIndex, originalAmount, totalShares(), tokens);
     }
 
     /// Withdraw the only position
@@ -230,7 +245,7 @@ contract Idea {
 
         token.safeTransfer(addr, positionTokens);
 
-        emit Withdrew(addr, positionIndex, positionTokens, shares, totalShares());
+        emit Withdrew(addr, positionIndex, positionTokens, shares, totalShares(), tokens);
     }
 
     /// @param positionIndex The positionIndex returned by the contribute() function.
@@ -242,6 +257,7 @@ contract Idea {
 
         Position[] storage fromPositions = positionsByAddress[sender];
         Position[] storage toPositions = positionsByAddress[recipient];
+        uint256 contribution = fromPositions[positionIndex].tokens;
 
         toPositions.push(fromPositions[positionIndex]);
         delete fromPositions[positionIndex];
@@ -252,7 +268,7 @@ contract Idea {
             recipientPositionIndex = toPositions.length - 1;
         }
 
-        emit PositionTransferred(sender, recipient, positionIndex, recipientPositionIndex);
+        emit PositionTransferred(sender, recipient, positionIndex, recipientPositionIndex, contribution);
     }
 
     /// Create numSplits new positions each containing amount tokens. Tokens to create the splits will be taken
@@ -286,7 +302,7 @@ contract Idea {
             firstNewPositionIndex = positions.length - numSplits;
         }
 
-        emit Split(addr, positionIndex, numSplits, firstNewPositionIndex, amount);
+        emit Split(addr, positionIndex, numSplits, firstNewPositionIndex, amount, position.tokens);
     }
 
     /// @param _tokens The token amount used to compute shares--either from the choice, or an individual position.

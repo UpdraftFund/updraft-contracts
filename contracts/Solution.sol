@@ -48,33 +48,41 @@ contract Solution is Ownable {
     mapping(address => uint256) public stakes;
 
     event FeesCollected(address indexed addr, uint256 positionIndex, uint256 amount);
-    event FundsWithdrawn(address to, uint256 amount);
-    event StakeUpdated(address indexed user, uint256 userStake, uint256 totalStake);
+    event FundsWithdrawn(address to, uint256 amount, uint256 tokensLeft);
+    event StakeUpdated(address indexed addr, uint256 stake, uint256 totalStake);
 
     /// @param newStake The new total stake amount for the `to` address
     event StakeTransferred(address indexed from, address indexed to, uint256 sent, uint256 newStake);
-    event Refunded(address indexed addr, uint256 amount, uint256 stakeAwarded);
+    event Refunded(
+        address indexed addr,
+        uint256 amount,
+        uint256 stakeCollected,
+        uint256 stakeLeftInSolution,
+        uint256 tokensLeftInSolution
+    );
     event SolutionUpdated(bytes data);
     event GoalExtended(uint256 goal, uint256 deadline);
     event Contributed(
         address indexed addr,
         uint256 positionIndex,
         uint256 amount,
-        uint256 totalTokensContributed,
-        uint256 totalShares
+        uint256 totalShares,
+        uint256 totalTokens
     );
     event PositionTransferred(
         address indexed sender,
         address indexed recipient,
         uint256 senderPositionIndex,
-        uint256 recipientPositionIndex
+        uint256 recipientPositionIndex,
+        uint256 contribution
     );
     event Split(
         address indexed addr,
         uint256 originalPositionIndex,
         uint256 numNewPositions,
         uint256 firstNewPositionIndex,
-        uint256 amountPerNewPosition
+        uint256 contributionPerNewPosition,
+        uint256 contributionLeftInOriginal
     );
 
     error PositionDoesNotExist();
@@ -189,7 +197,7 @@ contract Solution is Ownable {
         }
 
         fundingToken.safeTransferFrom(addr, address(this), originalAmount);
-        emit Contributed(addr, positionIndex, originalAmount, tokensContributed, totalShares());
+        emit Contributed(addr, positionIndex, originalAmount, totalShares(), totalTokens());
     }
 
     function addStake(uint256 amount) external{
@@ -223,13 +231,12 @@ contract Solution is Ownable {
     }
 
     function withdrawFunds(address to, uint256 amount) external onlyOwner goalReached {
-        uint256 tokensLeft = tokensContributed - tokensWithdrawn;
-        if (tokensLeft >= amount) {
+        if (amount <= totalTokens()) {
             tokensWithdrawn += amount;
             fundingToken.safeTransfer(to, amount);
-            emit FundsWithdrawn(to, amount);
+            emit FundsWithdrawn(to, amount, totalTokens());
         } else {
-            revert WithdrawMoreThanAvailable(amount, tokensLeft);
+            revert WithdrawMoreThanAvailable(amount, totalTokens());
         }
     }
 
@@ -312,6 +319,10 @@ contract Solution is Ownable {
         return cycles[cycles.length - 1].shares + pendingShares(currentCycleNumber(), tokensContributed);
     }
 
+    function totalTokens() public view returns (uint256) {
+        return tokensContributed - tokensWithdrawn;
+    }
+
     function currentCycleNumber() public view returns (uint256) {
         return (block.timestamp - startTime) / cycleLength;
     }
@@ -358,7 +369,7 @@ contract Solution is Ownable {
 
             fundingToken.safeTransfer(addr, position.contribution);
             stakingToken.safeTransfer(addr, stakeAward);
-            emit Refunded(addr, position.contribution, stakeAward);
+            emit Refunded(addr, position.contribution, stakeAward, stake, totalTokens());
         } else {
             revert GoalNotFailed();
         }
@@ -373,6 +384,7 @@ contract Solution is Ownable {
 
         Position[] storage fromPositions = positionsByAddress[sender];
         Position[] storage toPositions = positionsByAddress[recipient];
+        uint256 contribution = fromPositions[positionIndex].contribution;
 
         toPositions.push(fromPositions[positionIndex]);
         delete fromPositions[positionIndex];
@@ -383,7 +395,7 @@ contract Solution is Ownable {
             recipientPositionIndex = toPositions.length - 1;
         }
 
-        emit PositionTransferred(sender, recipient, positionIndex, recipientPositionIndex);
+        emit PositionTransferred(sender, recipient, positionIndex, recipientPositionIndex, contribution);
     }
 
     /// Create numSplits new positions each containing amount tokens. Tokens to create the splits will be taken
@@ -424,7 +436,7 @@ contract Solution is Ownable {
             firstNewPositionIndex = positions.length - numSplits;
         }
 
-        emit Split(addr, positionIndex, numSplits, firstNewPositionIndex, amount);
+        emit Split(addr, positionIndex, numSplits, firstNewPositionIndex, amount, position.contribution);
     }
 
     /// @param _tokens The token amount used to compute shares--either from the choice, or an individual position.
