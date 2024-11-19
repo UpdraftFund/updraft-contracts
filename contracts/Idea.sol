@@ -80,13 +80,13 @@ contract Idea {
     error SplitAmountMoreThanPosition(uint256 amount, uint256 positionAmount);
 
     modifier singlePosition(address addr) {
-        uint256 numPositions = positionsByAddress[addr].length;
+        uint256 positions = numPositions(addr);
 
-        if (numPositions == 0) {
+        if (positions == 0) {
             revert PositionDoesNotExist();
         }
 
-        if (numPositions > 1) {
+        if (positions > 1) {
             revert NotOnlyPosition();
         }
 
@@ -127,10 +127,6 @@ contract Idea {
         address addr
     ) external view singlePosition(addr) returns (uint256 positionTokens, uint256 shares) {
         return checkPosition(addr, 0);
-    }
-
-    function numPositions(address addr) external view returns (uint256) {
-        return positionsByAddress[addr].length;
     }
 
     /// @return positionIndex will be reused as input to withdraw(), checkPosition(), and other functions
@@ -215,6 +211,10 @@ contract Idea {
 
     function currentCycleNumber() public view returns (uint256) {
         return (block.timestamp - startTime) / cycleLength;
+    }
+
+    function numPositions(address addr) public view returns (uint256) {
+        return positionsByAddress[addr].length;
     }
 
     /// @param positionIndex The positionIndex returned by the contribute() function.
