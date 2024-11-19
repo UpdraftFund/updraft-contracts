@@ -49,9 +49,8 @@ contract Solution is Ownable {
 
     event FeesCollected(address indexed addr, uint256 positionIndex, uint256 amount);
     event FundsWithdrawn(address to, uint256 amount);
-    event StakeAdded(address indexed addr, uint256 amount, uint256 totalStake);
+    event StakeUpdated(address indexed user, uint256 userStake, uint256 totalStake);
     event StakeTransferred(address indexed from, address indexed to, uint256 amount);
-    event StakeRemoved(address indexed addr, uint256 amount, uint256 totalStake);
     event Refunded(address indexed addr, uint256 amount, uint256 stakeAwarded);
     event SolutionUpdated(bytes data);
     event GoalExtended(uint256 goal, uint256 deadline);
@@ -199,7 +198,7 @@ contract Solution is Ownable {
         stakes[addr] += amount;
 
         stakingToken.safeTransferFrom(addr, address(this), amount);
-        emit StakeAdded(addr,amount, stake);
+        emit StakeUpdated(addr, stakes[addr], stake);
     }
 
     function transferStake(address receiver) external{
@@ -218,7 +217,7 @@ contract Solution is Ownable {
         stakes[addr] -= amount;
 
         stakingToken.safeTransfer(addr, amount);
-        emit StakeRemoved(addr, amount, stake);
+        emit StakeUpdated(addr, stakes[addr], stake);
     }
 
     function withdrawFunds(address to, uint256 amount) external onlyOwner goalReached {
