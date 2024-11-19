@@ -50,7 +50,9 @@ contract Solution is Ownable {
     event FeesCollected(address indexed addr, uint256 positionIndex, uint256 amount);
     event FundsWithdrawn(address to, uint256 amount);
     event StakeUpdated(address indexed user, uint256 userStake, uint256 totalStake);
-    event StakeTransferred(address indexed from, address indexed to, uint256 amount);
+
+    /// @param newStake The new total stake amount for the `to` address
+    event StakeTransferred(address indexed from, address indexed to, uint256 sent, uint256 newStake);
     event Refunded(address indexed addr, uint256 amount, uint256 stakeAwarded);
     event SolutionUpdated(bytes data);
     event GoalExtended(uint256 goal, uint256 deadline);
@@ -206,7 +208,7 @@ contract Solution is Ownable {
         uint256 amount = stakes[sender];
         stakes[sender] = 0;
         stakes[receiver] += amount;
-        emit StakeTransferred(sender, receiver, amount);
+        emit StakeTransferred(sender, receiver, amount, stakes[receiver]);
     }
 
     function removeStake(uint256 amount) external goalReached {
