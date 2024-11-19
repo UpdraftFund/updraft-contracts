@@ -105,7 +105,7 @@ describe('Updraft', () => {
     });
     it('should give the caller a position in the Idea', async () => {
       const { contract: idea } = await loadFixture(deployIdeaAndGetContract);
-      const numPositions = Number(await idea.read.positionsLength([await walletAddress()]));
+      const numPositions = Number(await idea.read.numPositions([await walletAddress()]));
       expect(numPositions).to.be.above(0);
     });
     it("should set the caller's position equal to their contribution minus the anti-spam fee", async () => {
