@@ -238,32 +238,32 @@ contract Solution is Ownable {
 
     /// Extend the goal, keeping the deadline the same.
     function extendGoal(uint256 goal) external onlyOwner goalReached {
-            if (goal <= fundingGoal) revert GoalMustIncrease(fundingGoal, goal);
-            if (deadline <= block.timestamp) revert MustSetDeadlineInFuture(deadline);
+        if (goal <= fundingGoal) revert GoalMustIncrease(fundingGoal, goal);
+        if (deadline <= block.timestamp) revert MustSetDeadlineInFuture(deadline);
 
-            fundingGoal = goal;
-            emit GoalExtended(goal, deadline);
+        fundingGoal = goal;
+        emit GoalExtended(goal, deadline);
     }
 
     /// Extend the goal and the deadline.
     function extendGoal(uint256 goal, uint256 deadline_) external onlyOwner goalReached {
-            if (goal <= fundingGoal) revert GoalMustIncrease(fundingGoal, goal);
-            if (deadline_ <= block.timestamp) revert MustSetDeadlineInFuture(deadline);
+        if (goal <= fundingGoal) revert GoalMustIncrease(fundingGoal, goal);
+        if (deadline_ <= block.timestamp) revert MustSetDeadlineInFuture(deadline);
 
-            fundingGoal = goal;
-            deadline = deadline_;
-            emit GoalExtended(goal, deadline);
+        fundingGoal = goal;
+        deadline = deadline_;
+        emit GoalExtended(goal, deadline);
     }
 
     /// Extend the goal and the deadline. Also update the Solution data.
     function extendGoal(uint256 goal, uint256 deadline_, bytes calldata solutionData) external onlyOwner goalReached {
-            if (goal <= fundingGoal) revert GoalMustIncrease(fundingGoal, goal);
-            if (deadline_ <= block.timestamp) revert MustSetDeadlineInFuture(deadline);
+        if (goal <= fundingGoal) revert GoalMustIncrease(fundingGoal, goal);
+        if (deadline_ <= block.timestamp) revert MustSetDeadlineInFuture(deadline);
 
-            fundingGoal = goal;
-            deadline = deadline_;
-            emit GoalExtended(goal, deadline);
-            emit SolutionUpdated(solutionData);
+        fundingGoal = goal;
+        deadline = deadline_;
+        emit GoalExtended(goal, deadline);
+        emit SolutionUpdated(solutionData);
     }
 
     /// Collect fees for the only position
