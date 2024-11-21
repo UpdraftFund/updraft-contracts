@@ -152,8 +152,8 @@ contract Solution is Ownable {
     /// @return positionIndex will be reused as input to collectFees(), checkPosition(), and other functions
     function contribute(uint256 amount) external returns (uint256 positionIndex) {
         if (goalFailed()) revert GoalFailed();
-        address addr = msg.sender;
 
+        address addr = msg.sender;
         uint256 _contributorFee = amount * contributorFee / percentScale;
 
         updateCyclesAddingAmount(amount, _contributorFee);
@@ -202,6 +202,8 @@ contract Solution is Ownable {
     }
 
     function transferStake(address receiver) external{
+        if (goalFailed()) revert GoalFailed();
+
         address sender = msg.sender;
         uint256 amount = stakes[sender];
         stakes[sender] = 0;
@@ -374,8 +376,9 @@ contract Solution is Ownable {
         address recipient,
         uint256 positionIndex
     ) public positionExists(msg.sender, positionIndex) {
-        address sender = msg.sender;
+        if (goalFailed()) revert GoalFailed();
 
+        address sender = msg.sender;
         Position[] storage fromPositions = positionsByAddress[sender];
         Position[] storage toPositions = positionsByAddress[recipient];
         uint256 contribution = fromPositions[positionIndex].contribution;
@@ -399,6 +402,8 @@ contract Solution is Ownable {
         uint256 numSplits,
         uint256 amount
     ) public positionExists(msg.sender, positionIndex) {
+        if (goalFailed()) revert GoalFailed();
+
         address addr = msg.sender;
         Position[] storage positions = positionsByAddress[addr];
         Position storage position = positions[positionIndex];
