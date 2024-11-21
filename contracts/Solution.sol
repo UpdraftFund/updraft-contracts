@@ -53,7 +53,7 @@ contract Solution is Ownable {
 
     /// @param newStake The new total stake amount for the `to` address
     event StakeTransferred(address indexed from, address indexed to, uint256 sent, uint256 newStake);
-    event Refunded(address indexed addr, uint256 amount, uint256 stakeCollected);
+    event Refunded(address indexed addr, uint256 positionIndex, uint256 amount, uint256 stakeCollected);
     event SolutionUpdated(bytes data);
     event GoalExtended(uint256 goal, uint256 deadline);
     event Contributed(
@@ -363,7 +363,7 @@ contract Solution is Ownable {
 
             fundingToken.safeTransfer(addr, position.contribution);
             stakingToken.safeTransfer(addr, stakeAward);
-            emit Refunded(addr, position.contribution, stakeAward);
+            emit Refunded(addr, positionIndex, position.contribution, stakeAward);
         } else {
             revert GoalNotFailed();
         }
