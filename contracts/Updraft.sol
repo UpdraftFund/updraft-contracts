@@ -106,7 +106,6 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
         uint256 contributorFee,
         bytes calldata solutionData
     ) external {
-        feeToken.safeTransferFrom(msg.sender, humanity, minFee);
         Solution solution = new Solution(msg.sender, fundingToken, feeToken, goal, deadline, contributorFee);
         emit SolutionCreated(
             solution,
@@ -119,6 +118,7 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
             contributorFee,
             solutionData
         );
+        feeToken.safeTransferFrom(msg.sender, humanity, minFee);
         if (stake > 0){
             feeToken.safeTransferFrom(msg.sender, address(this), stake);
             feeToken.approve(address(solution), stake);
@@ -158,7 +158,6 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
         bytes calldata solutionData,
         bytes calldata profileData
     ) external {
-        feeToken.safeTransferFrom(msg.sender, humanity, minFee);
         Solution solution = new Solution(msg.sender, fundingToken, feeToken, goal, deadline, contributorFee);
         emit SolutionCreated(
             solution,
@@ -171,6 +170,7 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
             contributorFee,
             solutionData
         );
+        feeToken.safeTransferFrom(msg.sender, humanity, minFee);
         if (stake > 0){
             feeToken.safeTransferFrom(msg.sender, address(this), stake);
             feeToken.approve(address(solution), stake);
