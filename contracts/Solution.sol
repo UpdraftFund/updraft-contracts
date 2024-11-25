@@ -145,7 +145,7 @@ contract Solution is Ownable {
     /// Check the number of tokens and shares for an address with only one position.
     function checkPosition(
         address addr
-    ) external view singlePosition(addr) returns (uint256 positionTokens, uint256 shares) {
+    ) external view singlePosition(addr) returns (uint256 feesEarned, uint256 shares) {
         return checkPosition(addr, 0);
     }
 
