@@ -79,6 +79,7 @@ contract Solution is Ownable {
         uint256 contributionLeftInOriginal
     );
 
+    error ContributorFeeOverOneHundredPercent();
     error PositionDoesNotExist();
     error NotOnlyPosition();
     error SplitAmountMoreThanPosition(uint256 amount, uint256 positionAmount);
@@ -140,6 +141,10 @@ contract Solution is Ownable {
         cycleLength = crowdFund.cycleLength();
         accrualRate = crowdFund.accrualRate();
         percentScale = crowdFund.percentScale();
+
+        if (contributorFee > percentScale) {
+            revert ContributorFeeOverOneHundredPercent();
+        }
     }
 
     /// Check the number of tokens and shares for an address with only one position.
@@ -215,8 +220,10 @@ contract Solution is Ownable {
         address addr = msg.sender;
         if (amount > stakes[addr]) revert WithdrawMoreThanAvailable(amount, stakes[addr]);
 
-        stake -= amount;
-        stakes[addr] -= amount;
+        unchecked {
+            stake -= amount;
+            stakes[addr] -= amount;
+        }
 
         stakingToken.safeTransfer(addr, amount);
         emit StakeUpdated(addr, stakes[addr], stake);
@@ -474,7 +481,11 @@ contract Solution is Ownable {
 
         for (uint256 i = startIndex; i <= lastStoredCycleIndex;) {
             Cycle storage cycle = cycles[i];
-            Cycle storage prevStoredCycle = cycles[i - 1];
+            Cycle storage prevStoredCycle;
+
+            unchecked {
+                prevStoredCycle = cycles[i - 1];
+            }
 
             shares += accrualRate * (cycle.number - prevStoredCycle.number) * contribution / percentScale;
             feesEarned += (cycle.fees * shares) / cycle.shares;

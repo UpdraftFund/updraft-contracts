@@ -74,6 +74,7 @@ contract Idea {
         uint256 contributionLeftInOriginal
     );
 
+    error ContributorFeeOverOneHundredPercent();
     error ContributionLessThanMinFee(uint256 contribution, uint256 minFee);
     error PositionDoesNotExist();
     error NotOnlyPosition();
@@ -120,6 +121,10 @@ contract Idea {
         percentScale = crowdFund.percentScale();
         minFee = crowdFund.minFee();
         percentFee = crowdFund.percentFee();
+
+        if(contributorFee > percentScale){
+            revert ContributorFeeOverOneHundredPercent();
+        }
     }
 
     /// Check the number of tokens and shares for an address with only one position.
@@ -338,7 +343,11 @@ contract Idea {
 
         for (uint256 i = startIndex; i <= lastStoredCycleIndex; ) {
             Cycle storage cycle = cycles[i];
-            Cycle storage prevStoredCycle = cycles[i - 1];
+            Cycle storage prevStoredCycle;
+
+            unchecked {
+                prevStoredCycle = cycles[i - 1];
+            }
 
             shares += (accrualRate * (cycle.number - prevStoredCycle.number) * positionTokens) / percentScale;
             uint256 earnedFees = (cycle.fees * shares) / cycle.shares;
