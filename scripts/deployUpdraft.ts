@@ -6,9 +6,11 @@ import { networks } from './addresses.json';
 async function deploy(network) {
   const feeToken = networks[network].UPDToken;
   const minFee = parseUnits('1', 18); // 1 UPD
-  //  100% is 1000000 (percentScale is 1000000 in Updraft.sol)
+  // 100% is 1000000 (percentScale is 1000000 in Updraft.sol)
   const percentFee = 10000; // 1%
-  const accrualRate = 3000; // 0.3%
+  // The accrual rate (as long as it's > 0) doesn't change how Updraft functions. It only matters for the legibility of computed "shares."
+  // By keeping it a power of 10, we can make it easier to equate "shares" to the number of tokens contributed times hours passed.
+  const accrualRate = 1000; // 0.1%
   const cycleLength = 3600; // 1 hour in seconds
   const humanity = '0xdC0046B52e2E38AEe2271B6171ebb65cCD337518';
   const args = [feeToken, minFee, percentFee, cycleLength, accrualRate, humanity];
