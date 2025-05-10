@@ -79,6 +79,7 @@ contract Idea {
     error PositionDoesNotExist();
     error NotOnlyPosition();
     error SplitAmountMoreThanPosition(uint256 amount, uint256 positionAmount);
+    error CannotAirdropInFirstCycle();
 
     modifier singlePosition(address addr) {
         uint256 positions = numPositions(addr);
@@ -164,6 +165,54 @@ contract Idea {
 
         positionsByAddress[addr].push(Position({cycleIndex: lastStoredCycleIndex, tokens: amount}));
 
+        unchecked {
+            positionIndex = positionsByAddress[addr].length - 1;
+        }
+
+        token.safeTransferFrom(addr, address(this), originalAmount);
+        token.safeTransfer(humanity, fee);
+
+        emit Contributed(addr, positionIndex, originalAmount, totalShares(), tokens);
+    }
+
+    /// @notice Donates to past contributors with no expectation of return
+    /// @dev The entire contribution (minus anti-spam fee) is counted as a contributor fee
+    /// @param amount The amount to airdrop
+    function airdrop(uint256 amount) external {
+        if (amount < minFee) revert ContributionLessThanMinFee(amount, minFee);
+
+        // Check if we're in the first cycle
+        uint256 currentCycleNumber_ = currentCycleNumber();
+        uint256 length = cycles.length;
+        if (length == 0 || (length > 0 && cycles[0].number == currentCycleNumber_)) {
+            revert CannotAirdropInFirstCycle();
+        }
+
+        address addr = msg.sender;
+        uint256 originalAmount = amount;
+
+        // Anti-spam fee
+        uint256 fee = max(minFee, amount * percentFee / percentScale);
+        amount -= fee;
+        tokens += amount;
+
+        // The entire amount (minus anti-spam fee) is counted as contributor fee
+        uint256 _contributorFee = amount;
+
+        // Update cycles with the amount as a contribution and the entire amount as contributor fee
+        updateCyclesAddingAmount(amount, _contributorFee);
+
+        uint256 lastStoredCycleIndex;
+
+        unchecked {
+            // updateCyclesAddingAmount() will always add a cycle if none exists
+            lastStoredCycleIndex = cycles.length - 1;
+        }
+
+        // Create a position with 0 tokens (donation with no expectation of return)
+        positionsByAddress[addr].push(Position({cycleIndex: lastStoredCycleIndex, tokens: 0}));
+
+        uint256 positionIndex;
         unchecked {
             positionIndex = positionsByAddress[addr].length - 1;
         }
