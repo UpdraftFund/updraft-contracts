@@ -398,7 +398,7 @@ contract Idea {
                 prevStoredCycle = cycles[i - 1];
             }
 
-            shares += (accrualRate * (cycle.number - prevStoredCycle.number) * positionTokens) / percentScale;
+            shares = (accrualRate * (cycle.number - prevStoredCycle.number) * positionTokens) / percentScale;
             uint256 earnedFees = (cycle.fees * shares) / cycle.shares;
             positionTokens += earnedFees;
 
