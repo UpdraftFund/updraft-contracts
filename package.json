@@ -19,7 +19,7 @@
     "@types/mocha": ">=9.1.0",
     "@types/node": ">=18.0.0",
     "chai": "^4.2.0",
-    "hardhat": "^2.22.15",
+    "hardhat": "^2.24.0",
     "hardhat-gas-reporter": "^1.0.8",
     "solidity-coverage": "^0.8.0",
     "ts-node": ">=8.0.0",
