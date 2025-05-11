@@ -487,7 +487,7 @@ contract Solution is Ownable {
                 prevStoredCycle = cycles[i - 1];
             }
 
-            shares = accrualRate * (cycle.number - prevStoredCycle.number) * contribution / percentScale;
+            shares += accrualRate * (cycle.number - prevStoredCycle.number) * contribution / percentScale;
             feesEarned += (cycle.fees * shares) / cycle.shares;
 
             unchecked {
