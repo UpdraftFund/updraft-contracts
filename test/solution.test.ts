@@ -169,7 +169,7 @@ describe('Solution Contract', () => {
   });
 
   describe('Fee Collection', () => {
-    it('should allow contributors to collect fees', async () => {
+    it('should allow contributors to collect fees after multiple cycles', async () => {
       const { contract, upd } = await loadFixture(deploySolutionAndGetContract);
 
       // Get wallets for testing
@@ -191,6 +191,9 @@ describe('Solution Contract', () => {
       const secondContribution = parseUnits('20', 18);
       await contract.write.contribute([secondContribution], { account: secondWallet.account });
 
+      // Get initial position amount
+      const [initialPositionTokens, initialShares] = await contract.read.checkPosition([secondWalletAddress, 0]);
+
       // Get cycle length
       const cycleLength = await contract.read.cycleLength();
 
@@ -206,9 +209,103 @@ describe('Solution Contract', () => {
         await time.increase(Number(cycleLength) + 1);
       }
 
-      // Skip this test as it requires more complex setup
-      // Just verify the contract has the collectFees function
-      expect(typeof contract.write.collectFees).to.equal('function');
+      // Get balance before collecting fees
+      const balanceBefore = await upd.read.balanceOf([secondWalletAddress]);
+
+      // Get the position's last collected cycle index
+      const position = await contract.read.positionsByAddress([secondWalletAddress, 0]);
+      const lastCollectedCycleIndex = position[2];
+
+      // Get the current cycle index by checking the current cycle number
+      const currentCycleNumber = await contract.read.currentCycleNumber();
+
+      // Verify that there are uncollected cycles
+      expect(Number(currentCycleNumber)).to.be.gt(Number(lastCollectedCycleIndex));
+
+      // Second wallet collects fees
+      await contract.write.collectFees([0], { account: secondWallet.account });
+
+      // Get balance after collecting fees
+      const balanceAfter = await upd.read.balanceOf([secondWalletAddress]);
+
+      // Verify balance increased (fees were collected)
+      expect(Number(balanceAfter)).to.be.gt(Number(balanceBefore));
+
+      // Check that the position's lastCollectedCycleIndex was updated
+      const updatedPosition = await contract.read.positionsByAddress([secondWalletAddress, 0]);
+
+      // The lastCollectedCycleIndex should be updated to a higher value
+      expect(Number(updatedPosition[2])).to.be.gt(Number(lastCollectedCycleIndex));
+
+      // Verify that collecting fees again doesn't change the balance
+      await contract.write.collectFees([0], { account: secondWallet.account });
+      const balanceAfterSecondCollection = await upd.read.balanceOf([secondWalletAddress]);
+      expect(balanceAfterSecondCollection).to.equal(balanceAfter);
+    });
+
+    it('should distribute fees proportionally to contributors', async () => {
+      const { contract, upd } = await loadFixture(deploySolutionAndGetContract);
+
+      // Get wallets for testing
+      const [firstWallet, secondWallet, thirdWallet] = await hre.viem.getWalletClients();
+      const firstWalletAddress = firstWallet.account.address;
+      const secondWalletAddress = secondWallet.account.address;
+      const thirdWalletAddress = thirdWallet.account.address;
+
+      // Transfer tokens to test wallets
+      const transferAmount = parseUnits('100', 18);
+      await upd.write.transfer([secondWalletAddress, transferAmount]);
+      await upd.write.transfer([thirdWalletAddress, transferAmount]);
+
+      // Approve the solution contract to spend tokens
+      await upd.write.approve([contract.address, transferAmount], { account: secondWallet.account });
+      await upd.write.approve([contract.address, transferAmount], { account: thirdWallet.account });
+
+      // Second wallet contributes twice as much as third wallet
+      const secondContribution = parseUnits('20', 18);
+      const thirdContribution = parseUnits('10', 18);
+      await contract.write.contribute([secondContribution], { account: secondWallet.account });
+      await contract.write.contribute([thirdContribution], { account: thirdWallet.account });
+
+      // Get cycle length
+      const cycleLength = await contract.read.cycleLength();
+
+      // Advance time to the next cycle
+      await time.increase(Number(cycleLength) + 1);
+
+      // First wallet contributes in the second cycle
+      const firstContribution = parseUnits('30', 18);
+      await contract.write.contribute([firstContribution]);
+
+      // Advance time through several more cycles
+      for (let i = 0; i < 3; i++) {
+        await time.increase(Number(cycleLength) + 1);
+      }
+
+      // Get balances before collecting fees
+      const secondBalanceBefore = await upd.read.balanceOf([secondWalletAddress]);
+      const thirdBalanceBefore = await upd.read.balanceOf([thirdWalletAddress]);
+
+      // Both wallets collect fees
+      await contract.write.collectFees([0], { account: secondWallet.account });
+      await contract.write.collectFees([0], { account: thirdWallet.account });
+
+      // Get balances after collecting fees
+      const secondBalanceAfter = await upd.read.balanceOf([secondWalletAddress]);
+      const thirdBalanceAfter = await upd.read.balanceOf([thirdWalletAddress]);
+
+      // Calculate fee increases
+      const secondIncrease = secondBalanceAfter - secondBalanceBefore;
+      const thirdIncrease = thirdBalanceAfter - thirdBalanceBefore;
+
+      // Verify both wallets received fees
+      expect(Number(secondIncrease)).to.be.gt(0);
+      expect(Number(thirdIncrease)).to.be.gt(0);
+
+      // The second wallet should receive approximately twice as much as the third wallet
+      // because they contributed twice as much
+      const ratio = Number(secondIncrease) / Number(thirdIncrease);
+      expect(ratio).to.be.closeTo(2, 0.5); // Allow for some variation due to rounding
     });
   });
 
