@@ -5,17 +5,17 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ICrowdFund} from "./interfaces/ICrowdFund.sol";
 
-struct Cycle {
-    uint256 number;
-    uint256 shares;
-    uint256 fees;
-    bool hasContributions;
-}
+    struct Cycle {
+        uint256 number;
+        uint256 shares;
+        uint256 fees;
+        bool hasContributions;
+    }
 
-struct Position {
-    uint256 cycleIndex;
-    uint256 tokens;
-}
+    struct Position {
+        uint256 cycleIndex;
+        uint256 tokens;
+    }
 
 contract Idea {
     using SafeERC20 for IERC20;
@@ -35,6 +35,7 @@ contract Idea {
     /// @dev This should equal balanceOf(address(this)),
     /// but we don't want to have to repeatedly call the token contract, so we keep track internally.
     uint256 public tokens;
+    uint256 public contributorFees;
 
     Cycle[] public cycles;
 
@@ -122,8 +123,9 @@ contract Idea {
         percentScale = crowdFund.percentScale();
         minFee = crowdFund.minFee();
         percentFee = crowdFund.percentFee();
+        contributorFees = 0; // Initialize contributor fees tracking
 
-        if(contributorFee > percentScale){
+        if (contributorFee > percentScale) {
             revert ContributorFeeOverOneHundredPercent();
         }
     }
@@ -154,12 +156,15 @@ contract Idea {
         uint256 lastStoredCycleIndex;
 
         unchecked {
-            // updateCyclesAddingAmount() will always add a cycle if none exists
+        // updateCyclesAddingAmount() will always add a cycle if none exists
             lastStoredCycleIndex = cycles.length - 1;
 
             if (lastStoredCycleIndex > 0) {
                 // Contributor fees are only charged in cycles after the one in which the first contribution was made.
                 amount -= _contributorFee;
+
+                // Track the contributor fees
+                contributorFees += _contributorFee;
             }
         }
 
@@ -199,13 +204,16 @@ contract Idea {
         // The entire amount (minus anti-spam fee) is counted as contributor fee
         uint256 _contributorFee = amount;
 
+        // Track the contributor fees
+        contributorFees += _contributorFee;
+
         // Update cycles with the amount as a contribution and the entire amount as contributor fee
         updateCyclesAddingAmount(amount, _contributorFee);
 
         uint256 lastStoredCycleIndex;
 
         unchecked {
-            // updateCyclesAddingAmount() will always add a cycle if none exists
+        // updateCyclesAddingAmount() will always add a cycle if none exists
             lastStoredCycleIndex = cycles.length - 1;
         }
 
@@ -243,7 +251,7 @@ contract Idea {
             lastIndex = positionIndexes.length - 1;
         }
 
-        for (uint256 i; i <= lastIndex; ) {
+        for (uint256 i; i <= lastIndex;) {
             transferPosition(recipient, positionIndexes[i]);
             unchecked {
                 ++i;
@@ -291,10 +299,11 @@ contract Idea {
         delete positionsByAddress[addr][positionIndex];
 
         uint256 lastStoredCycleIndex;
+
         unchecked {
             lastStoredCycleIndex = cycles.length - 1;
-            tokens -= positionTokens;
             cycles[lastStoredCycleIndex].shares -= shares;
+            tokens -= positionTokens;
         }
 
         token.safeTransfer(addr, positionTokens);
@@ -343,7 +352,7 @@ contract Idea {
             position.tokens -= deductAmount;
         }
 
-        for (uint256 i = 1; i <= numSplits; ) {
+        for (uint256 i = 1; i <= numSplits;) {
             positions.push(Position({cycleIndex: position.cycleIndex, tokens: amount}));
             unchecked {
                 ++i;
@@ -380,12 +389,13 @@ contract Idea {
         Position storage position = positionsByAddress[addr][positionIndex];
 
         positionTokens = position.tokens;
+        uint256 originalTokens = positionTokens;
 
         uint256 lastStoredCycleIndex;
         uint256 startIndex;
 
         unchecked {
-            // updateCyclesAddingAmount() will always add a cycle if none exists
+        // updateCyclesAddingAmount() will always add a cycle if none exists
             lastStoredCycleIndex = cycles.length - 1;
             startIndex = position.cycleIndex + 1; // can't realistically overflow
         }
@@ -398,8 +408,16 @@ contract Idea {
                 prevStoredCycle = cycles[i - 1];
             }
 
-            shares = (accrualRate * (cycle.number - prevStoredCycle.number) * positionTokens) / percentScale;
-            uint256 earnedFees = (cycle.fees * shares) / cycle.shares;
+            // Calculate shares for this cycle based on the original tokens
+            uint256 cycleShares = (accrualRate * (cycle.number - prevStoredCycle.number) * originalTokens) / percentScale;
+            shares += cycleShares;
+
+            // Calculate earned fees for this cycle
+            uint256 earnedFees;
+            if (cycle.shares > 0) {
+                // Distribute all fees proportionally to shares
+                earnedFees = (cycle.fees * cycleShares) / cycle.shares;
+            }
             positionTokens += earnedFees;
 
             unchecked {
@@ -436,7 +454,8 @@ contract Idea {
                 Cycle memory newCycle = Cycle({
                     number: currentCycleNumber_,
                     shares: lastStoredCycle.shares +
-                        (accrualRate * (currentCycleNumber_ - lastStoredCycleNumber) * tokens) / percentScale,
+                        accrualRate * (currentCycleNumber_ - lastStoredCycleNumber) * (tokens - contributorFees)
+                        / percentScale,
                     fees: _contributorFee,
                     hasContributions: _amount > 0
                 });
