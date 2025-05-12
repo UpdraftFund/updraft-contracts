@@ -491,7 +491,7 @@ contract Solution is Ownable {
         for (uint256 i = loopIndex; i <= lastStoredCycleIndex;) {
             Cycle storage cycle = cycles[i];
 
-            shares += accrualRate * (cycle.number - firstCycleNumber) * contribution / percentScale;
+            shares = accrualRate * (cycle.number - firstCycleNumber) * contribution / percentScale;
             feesEarned += (cycle.fees * shares) / cycle.shares;
 
             unchecked {
