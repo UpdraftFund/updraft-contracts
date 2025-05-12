@@ -291,6 +291,8 @@ contract Idea {
     /// @param positionIndex The positionIndex returned by the contribute() function.
     function withdraw(uint256 positionIndex) public positionExists(msg.sender, positionIndex) {
         address addr = msg.sender;
+        Position storage position = positionsByAddress[addr][positionIndex];
+        uint256 originalPosition = position.tokens;
 
         updateCyclesAddingAmount(0, 0);
 
@@ -304,6 +306,7 @@ contract Idea {
             lastStoredCycleIndex = cycles.length - 1;
             cycles[lastStoredCycleIndex].shares -= shares;
             tokens -= positionTokens;
+            contributorFees -= positionTokens - originalPosition;
         }
 
         token.safeTransfer(addr, positionTokens);
@@ -412,13 +415,10 @@ contract Idea {
             uint256 cycleShares = (accrualRate * (cycle.number - prevStoredCycle.number) * originalTokens) / percentScale;
             shares += cycleShares;
 
-            // Calculate earned fees for this cycle
-            uint256 earnedFees;
-            if (cycle.shares > 0) {
-                // Distribute all fees proportionally to shares
-                earnedFees = (cycle.fees * cycleShares) / cycle.shares;
+            if (cycle.shares >= cycleShares) {
+                // Distribute fees proportionally to shares
+                positionTokens += (cycle.fees * cycleShares) / cycle.shares;
             }
-            positionTokens += earnedFees;
 
             unchecked {
                 ++i;
