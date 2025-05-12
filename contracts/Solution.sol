@@ -524,7 +524,7 @@ contract Solution is Ownable {
                 Cycle memory newCycle = Cycle({
                     number: currentCycleNumber_,
                     shares: lastStoredCycle.shares +
-                (accrualRate * (currentCycleNumber_ - lastStoredCycleNumber) * tokensContributed) / percentScale,
+                        (accrualRate * (currentCycleNumber_ - lastStoredCycleNumber) * tokensContributed) / percentScale,
                     fees: _contributorFee,
                     hasContributions: _amount > 0
                 });
