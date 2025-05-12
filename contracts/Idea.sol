@@ -13,7 +13,7 @@ import {ICrowdFund} from "./interfaces/ICrowdFund.sol";
     }
 
     struct Position {
-        uint256 cycleIndex;
+        uint256 startCycleIndex;
         uint256 tokens;
     }
 
@@ -169,7 +169,7 @@ contract Idea {
             }
         }
 
-        positionsByAddress[addr].push(Position({cycleIndex: lastStoredCycleIndex, tokens: amount}));
+        positionsByAddress[addr].push(Position({startCycleIndex: lastStoredCycleIndex, tokens: amount}));
 
         unchecked {
             positionIndex = positionsByAddress[addr].length - 1;
@@ -215,7 +215,7 @@ contract Idea {
         }
 
         // Create a position with 0 tokens (donation with no expectation of return)
-        positionsByAddress[addr].push(Position({cycleIndex: lastStoredCycleIndex, tokens: 0}));
+        positionsByAddress[addr].push(Position({startCycleIndex: lastStoredCycleIndex, tokens: 0}));
 
         uint256 positionIndex;
         unchecked {
@@ -362,7 +362,7 @@ contract Idea {
         }
 
         for (uint256 i = 1; i <= numSplits;) {
-            positions.push(Position({cycleIndex: position.cycleIndex, tokens: amount}));
+            positions.push(Position({startCycleIndex: position.startCycleIndex, tokens: amount}));
             unchecked {
                 ++i;
             }
@@ -401,13 +401,13 @@ contract Idea {
         uint256 originalTokens = positionTokens;
 
         uint256 loopIndex;
-        uint256 firstCycleNumber = cycles[position.cycleIndex].number;
+        uint256 firstCycleNumber = cycles[position.startCycleIndex].number;
         uint256 lastStoredCycleIndex;
 
         unchecked {
         // updateCyclesWithFee() will always add a cycle if none exists
             lastStoredCycleIndex = cycles.length - 1;
-            loopIndex = position.cycleIndex + 1; // can't realistically overflow
+            loopIndex = position.startCycleIndex + 1; // can't realistically overflow
         }
 
         for (uint256 i = loopIndex; i <= lastStoredCycleIndex; ) {
