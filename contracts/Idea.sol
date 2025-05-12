@@ -150,14 +150,14 @@ contract Idea {
 
         uint256 _contributorFee = amount * contributorFee / percentScale;
 
-        updateCyclesAddingAmount(amount, _contributorFee);
+        updateCyclesWithFee(_contributorFee);
 
         tokens += amount;
 
         uint256 lastStoredCycleIndex;
 
         unchecked {
-        // updateCyclesAddingAmount() will always add a cycle if none exists
+        // updateCyclesWithFee() will always add a cycle if none exists
             lastStoredCycleIndex = cycles.length - 1;
 
             if (lastStoredCycleIndex > 0) {
@@ -187,10 +187,7 @@ contract Idea {
     function airdrop(uint256 amount) external {
         if (amount < minFee) revert ContributionLessThanMinFee(amount, minFee);
 
-        // Check if we're in the first cycle
-        uint256 currentCycleNumber_ = currentCycleNumber();
-        uint256 length = cycles.length;
-        if (length == 0 || (length > 0 && cycles[0].number == currentCycleNumber_)) {
+        if (cycles.length <= 1) {
             revert CannotAirdropInFirstCycle();
         }
 
@@ -204,13 +201,11 @@ contract Idea {
         // The entire amount (minus anti-spam fee) is counted as contributor fee
         uint256 _contributorFee = amount;
 
-        // Track the contributor fees
-        contributorFees += _contributorFee;
-
         // Update cycles with the amount as a contribution and the entire amount as contributor fee
-        updateCyclesAddingAmount(amount, _contributorFee);
+        updateCyclesWithFee(_contributorFee);
 
         tokens += amount;
+        contributorFees += _contributorFee;
 
         uint256 lastStoredCycleIndex;
 
@@ -296,7 +291,8 @@ contract Idea {
         Position storage position = positionsByAddress[addr][positionIndex];
         uint256 originalPosition = position.tokens;
 
-        updateCyclesAddingAmount(0, 0);
+        // Insert a new cycle to checkpoint all contributions until now.
+        updateCyclesWithFee(0);
 
         (uint256 positionTokens, uint256 shares) = positionToLastStoredCycle(addr, positionIndex);
         uint256 feesEarned = positionTokens - originalPosition;
@@ -409,7 +405,7 @@ contract Idea {
         uint256 lastStoredCycleIndex;
 
         unchecked {
-        // updateCyclesAddingAmount() will always add a cycle if none exists
+        // updateCyclesWithFee() will always add a cycle if none exists
             lastStoredCycleIndex = cycles.length - 1;
             loopIndex = position.cycleIndex + 1; // can't realistically overflow
         }
@@ -428,9 +424,8 @@ contract Idea {
         }
     }
 
-    function updateCyclesAddingAmount(uint256 _amount, uint256 _contributorFee) internal {
+    function updateCyclesWithFee(uint256 _contributorFee) internal {
         uint256 currentCycleNumber_ = currentCycleNumber();
-
         uint256 length = cycles.length;
 
         if (length == 0) {
@@ -448,20 +443,21 @@ contract Idea {
             uint256 lastStoredCycleNumber = lastStoredCycle.number;
 
             if (lastStoredCycleNumber == currentCycleNumber_) {
+                // The first cycle doesn't charge contributor fees.
                 if (lastStoredCycleIndex != 0) {
                     lastStoredCycle.fees += _contributorFee;
                 }
             } else {
-                // Add a new cycle to the array using values from the previous one.
+                // Some cycle numbers might be skipped, so we need to accrue shares in between.
                 Cycle memory newCycle = Cycle({
                     number: currentCycleNumber_,
                     shares: lastStoredCycle.shares + accrualRate * (currentCycleNumber_ - lastStoredCycleNumber)
                         * (tokens - contributorFees)
                         / percentScale,
                     fees: _contributorFee,
-                    hasContributions: _amount > 0
+                    hasContributions: _contributorFee > 0
                 });
-                // We're only interested in adding cycles that have contributions, since we use the stored
+                // We're only interested in adding cycles that have contributions, since we store
                 // cycles to compute fees at withdrawal time.
                 if (lastStoredCycle.hasContributions) {
                     // Keep cycles with contributions.
