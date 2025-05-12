@@ -154,6 +154,9 @@ contract Solution is Ownable {
         return checkPosition(addr, 0);
     }
 
+    /// @notice Allows users to contribute to this Solution
+    /// @dev Creates a new position for the contributor
+    /// @param amount The amount to contribute
     /// @return positionIndex will be reused as input to collectFees(), checkPosition(), and other functions
     function contribute(uint256 amount) external returns (uint256 positionIndex) {
         if (goalFailed()) revert GoalFailed();
@@ -161,7 +164,7 @@ contract Solution is Ownable {
         address addr = msg.sender;
         uint256 _contributorFee = amount * contributorFee / percentScale;
 
-        updateCyclesAddingAmount(amount, _contributorFee);
+        updateCyclesWithFee(_contributorFee);
 
         uint256 originalAmount = amount;
         uint256 lastStoredCycleIndex;
@@ -344,11 +347,13 @@ contract Solution is Ownable {
         shares += pendingShares(currentCycleNumber(), positionsByAddress[addr][positionIndex].contribution);
     }
 
-    /// @param positionIndex The positionIndex returned by the contribute() function.
+    /// @notice Allows contributors to collect their earned fees
+    /// @dev Updates cycles and transfers earned fees to the contributor
+    /// @param positionIndex The positionIndex returned by the contribute() function
     function collectFees(uint256 positionIndex) public positionExists(msg.sender, positionIndex) {
         address addr = msg.sender;
 
-        updateCyclesAddingAmount(0, 0);
+        updateCyclesWithFee(0);
 
         (uint256 feesEarned, uint256 shares) = positionToLastStoredCycle(addr, positionIndex);
 
@@ -459,35 +464,34 @@ contract Solution is Ownable {
         return (accrualRate * (_cycleNumber - lastStoredCycle.number) * _tokens) / percentScale;
     }
 
+    /// @notice Calculates the fees earned and shares for a position up to the last stored cycle
+    /// @dev Used by collectFees and checkPosition to determine earned fees
+    /// @param addr The address of the position owner
+    /// @param positionIndex The index of the position
+    /// @return feesEarned The amount of fees earned by the position
+    /// @return shares The number of shares held by the position
     function positionToLastStoredCycle(
         address addr,
         uint256 positionIndex
     ) internal view returns (uint256 feesEarned, uint256 shares) {
         Position storage position = positionsByAddress[addr][positionIndex];
+
         uint256 contribution = position.contribution;
 
+        uint256 loopIndex;
+        uint256 firstCycleNumber = cycles[position.startCycleIndex].number;
         uint256 lastStoredCycleIndex;
-        uint256 startIndex;
 
         unchecked {
-        // updateCyclesAddingAmount() will always add a cycle if none exists
+        // updateCyclesWithFee() will always add a cycle if none exists
             lastStoredCycleIndex = cycles.length - 1;
-            startIndex = position.lastCollectedCycleIndex + 1; // can't realistically overflow
+            loopIndex = position.lastCollectedCycleIndex + 1; // can't realistically overflow
         }
 
-        shares = accrualRate
-            * (cycles[position.lastCollectedCycleIndex].number - cycles[position.startCycleIndex].number)
-            * contribution / percentScale;
-
-        for (uint256 i = startIndex; i <= lastStoredCycleIndex;) {
+        for (uint256 i = loopIndex; i <= lastStoredCycleIndex;) {
             Cycle storage cycle = cycles[i];
-            Cycle storage prevStoredCycle;
 
-            unchecked {
-                prevStoredCycle = cycles[i - 1];
-            }
-
-            shares += accrualRate * (cycle.number - prevStoredCycle.number) * contribution / percentScale;
+            shares += accrualRate * (cycle.number - firstCycleNumber) * contribution / percentScale;
             feesEarned += (cycle.fees * shares) / cycle.shares;
 
             unchecked {
@@ -496,7 +500,10 @@ contract Solution is Ownable {
         }
     }
 
-    function updateCyclesAddingAmount(uint256 _amount, uint256 _contributorFee) internal {
+    /// @notice Updates cycles with new fees
+    /// @dev This function is called by contribute() and collectFees() to update the cycle data
+    /// @param _contributorFee The contributor fee for this contribution
+    function updateCyclesWithFee(uint256 _contributorFee) internal {
         uint256 currentCycleNumber_ = currentCycleNumber();
 
         uint256 length = cycles.length;
@@ -516,17 +523,18 @@ contract Solution is Ownable {
             uint256 lastStoredCycleNumber = lastStoredCycle.number;
 
             if (lastStoredCycleNumber == currentCycleNumber_) {
+                // The first cycle doesn't charge contributor fees.
                 if (lastStoredCycleIndex != 0) {
                     lastStoredCycle.fees += _contributorFee;
                 }
             } else {
-                // Add a new cycle to the array using values from the previous one.
+                // Some cycle numbers might be skipped, so we need to accrue shares in between.
                 Cycle memory newCycle = Cycle({
                     number: currentCycleNumber_,
                     shares: lastStoredCycle.shares +
-                        (accrualRate * (currentCycleNumber_ - lastStoredCycleNumber) * tokensContributed) / percentScale,
+                        accrualRate * (currentCycleNumber_ - lastStoredCycleNumber) * tokensContributed / percentScale,
                     fees: _contributorFee,
-                    hasContributions: _amount > 0
+                    hasContributions: _contributorFee > 0
                 });
                 // We're only interested in adding cycles that have contributions, since we use the stored
                 // cycles to compute fees at withdrawal time.
