@@ -147,11 +147,12 @@ contract Idea {
         // Anti-spam fee
         uint256 fee = max(minFee, amount * percentFee / percentScale);
         amount -= fee;
-        tokens += amount;
 
         uint256 _contributorFee = amount * contributorFee / percentScale;
 
         updateCyclesAddingAmount(amount, _contributorFee);
+
+        tokens += amount;
 
         uint256 lastStoredCycleIndex;
 
@@ -199,7 +200,6 @@ contract Idea {
         // Anti-spam fee
         uint256 fee = max(minFee, amount * percentFee / percentScale);
         amount -= fee;
-        tokens += amount;
 
         // The entire amount (minus anti-spam fee) is counted as contributor fee
         uint256 _contributorFee = amount;
@@ -209,6 +209,8 @@ contract Idea {
 
         // Update cycles with the amount as a contribution and the entire amount as contributor fee
         updateCyclesAddingAmount(amount, _contributorFee);
+
+        tokens += amount;
 
         uint256 lastStoredCycleIndex;
 
@@ -297,6 +299,13 @@ contract Idea {
         updateCyclesAddingAmount(0, 0);
 
         (uint256 positionTokens, uint256 shares) = positionToLastStoredCycle(addr, positionIndex);
+        uint256 feesEarned = positionTokens - originalPosition;
+
+        // Cap fees earned to prevent underflow
+        if (feesEarned > contributorFees) {
+            feesEarned = contributorFees;
+            positionTokens = originalPosition + feesEarned;
+        }
 
         delete positionsByAddress[addr][positionIndex];
 
@@ -305,9 +314,10 @@ contract Idea {
         unchecked {
             lastStoredCycleIndex = cycles.length - 1;
             cycles[lastStoredCycleIndex].shares -= shares;
-            tokens -= positionTokens;
-            contributorFees -= positionTokens - originalPosition;
         }
+
+        tokens -= positionTokens;
+        contributorFees -= feesEarned;
 
         token.safeTransfer(addr, positionTokens);
 
@@ -394,30 +404,23 @@ contract Idea {
         positionTokens = position.tokens;
         uint256 originalTokens = positionTokens;
 
+        uint256 loopIndex;
+        uint256 firstCycleNumber = cycles[position.cycleIndex].number;
         uint256 lastStoredCycleIndex;
-        uint256 startIndex;
 
         unchecked {
         // updateCyclesAddingAmount() will always add a cycle if none exists
             lastStoredCycleIndex = cycles.length - 1;
-            startIndex = position.cycleIndex + 1; // can't realistically overflow
+            loopIndex = position.cycleIndex + 1; // can't realistically overflow
         }
 
-        for (uint256 i = startIndex; i <= lastStoredCycleIndex; ) {
+        for (uint256 i = loopIndex; i <= lastStoredCycleIndex; ) {
             Cycle storage cycle = cycles[i];
-            Cycle storage prevStoredCycle;
-
-            unchecked {
-                prevStoredCycle = cycles[i - 1];
-            }
 
             // Calculate shares for this cycle based on the original tokens
-            shares += accrualRate * (cycle.number - prevStoredCycle.number) * originalTokens / percentScale;
+            shares = accrualRate * (cycle.number - firstCycleNumber) * originalTokens / percentScale;
 
-            if (cycle.shares >= shares) {
-                // Distribute fees proportionally to shares
-                positionTokens += (cycle.fees * shares) / cycle.shares;
-            }
+            positionTokens += (cycle.fees * shares) / cycle.shares;
 
             unchecked {
                 ++i;
@@ -452,8 +455,8 @@ contract Idea {
                 // Add a new cycle to the array using values from the previous one.
                 Cycle memory newCycle = Cycle({
                     number: currentCycleNumber_,
-                    shares: lastStoredCycle.shares +
-                        accrualRate * (currentCycleNumber_ - lastStoredCycleNumber) * (tokens - contributorFees)
+                    shares: lastStoredCycle.shares + accrualRate * (currentCycleNumber_ - lastStoredCycleNumber)
+                        * (tokens - contributorFees)
                         / percentScale,
                     fees: _contributorFee,
                     hasContributions: _amount > 0
