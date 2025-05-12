@@ -1,5 +1,5 @@
 import hre from 'hardhat';
-import { parseUnits, toHex } from 'viem';
+import { parseUnits, toHex, formatUnits } from 'viem';
 import { expect } from 'chai';
 import { loadFixture } from '@nomicfoundation/hardhat-toolbox-viem/network-helpers';
 import { getEventsFromTx, walletAddress } from './utilities/helpers.ts';
@@ -7,7 +7,7 @@ import { time } from "@nomicfoundation/hardhat-network-helpers";
 
 const antiSpamFee = parseUnits('1', 18); // 1 UPD
 const contribution = parseUnits('10', 18); // 10 UPD
-const airdropAmount = parseUnits('5', 18); // 5 UPD
+const airdropAmount = parseUnits('1000000', 18); // 1 million UPD - truly massive airdrop to test scaling
 
 const deployUpdraft = async () => {
   const upd = await hre.viem.deployContract('UPDToken');
@@ -263,6 +263,9 @@ describe('Idea Contract', () => {
       const cycleLength = await contract.read.cycleLength();
       await time.increase(Number(cycleLength) + 1);
 
+      // Make a small contribution to create a new cycle
+      await contract.write.contribute([antiSpamFee * 2n]);
+
       // Get initial tokens
       const initialTokens = await contract.read.tokens();
 
@@ -291,6 +294,9 @@ describe('Idea Contract', () => {
       // Advance time to the second cycle
       const cycleLength = await contract.read.cycleLength();
       await time.increase(Number(cycleLength) + 1);
+
+      // Make a small contribution to create a new cycle
+      await contract.write.contribute([antiSpamFee * 2n]);
 
       // Get initial number of positions
       const initialPositions = await contract.read.numPositions([await walletAddress()]);
@@ -339,6 +345,9 @@ describe('Idea Contract', () => {
       // Advance time to the second cycle
       const cycleLength = await contract.read.cycleLength();
       await time.increase(Number(cycleLength) + 1);
+
+      // Make a small contribution to create a new cycle
+      await contract.write.contribute([antiSpamFee * 2n]);
 
       // Get initial positions
       const [initialSecondTokens] = await contract.read.checkPosition([secondWalletAddress, 0]);
@@ -399,6 +408,9 @@ describe('Idea Contract', () => {
       const cycleLength = await contract.read.cycleLength();
       await time.increase(Number(cycleLength) + 1);
 
+      // Make a small contribution to create a new cycle
+      await contract.write.contribute([antiSpamFee * 2n]);
+
       // First wallet airdrops to the idea
       await contract.write.airdrop([airdropAmount]);
 
@@ -409,18 +421,60 @@ describe('Idea Contract', () => {
       // Get total tokens before withdrawals
       const totalTokensBefore = await contract.read.tokens();
 
+      // Get position details
+      const firstPosition = await contract.read.checkPosition([firstWallet.account.address, 0n]);
+      const secondPosition = await contract.read.checkPosition([secondWallet.account.address, 0n]);
+      const thirdPosition = await contract.read.checkPosition([thirdWallet.account.address, 0n]);
+
+      console.log(`First position tokens: ${formatUnits(firstPosition[0], 18)} UPD, shares: ${formatUnits(firstPosition[1], 18)}`);
+      console.log(`Second position tokens: ${formatUnits(secondPosition[0], 18)} UPD, shares: ${formatUnits(secondPosition[1], 18)}`);
+      console.log(`Third position tokens: ${formatUnits(thirdPosition[0], 18)} UPD, shares: ${formatUnits(thirdPosition[1], 18)}`);
+
+      // Get original position tokens
+      const firstOriginalPosition = await contract.read.positionsByAddress([firstWallet.account.address, 0n]);
+      const secondOriginalPosition = await contract.read.positionsByAddress([secondWallet.account.address, 0n]);
+      const thirdOriginalPosition = await contract.read.positionsByAddress([thirdWallet.account.address, 0n]);
+
+      console.log(`First original position tokens: ${formatUnits(firstOriginalPosition[1], 18)} UPD`);
+      console.log(`Second original position tokens: ${formatUnits(secondOriginalPosition[1], 18)} UPD`);
+      console.log(`Third original position tokens: ${formatUnits(thirdOriginalPosition[1], 18)} UPD`);
+
+      // Track wallet balances before withdrawals
+      const firstBalanceBefore = await upd.read.balanceOf([firstWallet.account.address]);
+      const secondBalanceBefore = await upd.read.balanceOf([secondWallet.account.address]);
+      const thirdBalanceBefore = await upd.read.balanceOf([thirdWallet.account.address]);
+
       // All wallets withdraw their positions
       await contract.write.withdraw([0]);
       await contract.write.withdraw([0], { account: secondWallet.account });
       await contract.write.withdraw([0], { account: thirdWallet.account });
 
+      // Track wallet balances after withdrawals
+      const firstBalanceAfter = await upd.read.balanceOf([firstWallet.account.address]);
+      const secondBalanceAfter = await upd.read.balanceOf([secondWallet.account.address]);
+      const thirdBalanceAfter = await upd.read.balanceOf([thirdWallet.account.address]);
+
+      // Calculate withdrawn amounts
+      const firstWithdrawn = firstBalanceAfter - firstBalanceBefore;
+      const secondWithdrawn = secondBalanceAfter - secondBalanceBefore;
+      const thirdWithdrawn = thirdBalanceAfter - thirdBalanceBefore;
+
+      console.log(`First wallet withdrew: ${formatUnits(firstWithdrawn, 18)} UPD`);
+      console.log(`Second wallet withdrew: ${formatUnits(secondWithdrawn, 18)} UPD`);
+      console.log(`Third wallet withdrew: ${formatUnits(thirdWithdrawn, 18)} UPD`);
+      console.log(`Total withdrawn: ${formatUnits(firstWithdrawn + secondWithdrawn + thirdWithdrawn, 18)} UPD`);
+
       // Get total tokens after all withdrawals
       const totalTokensAfter = await contract.read.tokens();
+      const contributorFeesAfter = await contract.read.contributorFees();
 
-      // Verify that no tokens are left in the contract (or very close to zero due to rounding)
-      // There might be a significant amount left due to how fees are distributed
-      // Just verify that a substantial portion was withdrawn
-      expect(Number(totalTokensAfter)).to.be.lessThan(Number(totalTokensBefore) * 0.5); // Less than 50% remaining
+      // Check if there are tokens left in the contract
+      console.log(`Tokens left in contract: ${totalTokensAfter} out of ${totalTokensBefore}`);
+      console.log(`Contributor fees left: ${contributorFeesAfter}`);
+
+      // With the fee capping mechanism, there might be a small amount of tokens left
+      // due to rounding errors, but the contract should have distributed all contributor fees
+      expect(contributorFeesAfter).to.equal(0n); // All contributor fees should be distributed
     });
   });
 
