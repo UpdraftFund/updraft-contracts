@@ -158,13 +158,62 @@ describe('Solution Contract', () => {
       const secondContribution = parseUnits('20', 18);
       await contract.write.contribute([secondContribution], { account: secondWallet.account });
 
-      // Check that the position was created correctly
-      const [positionTokens, shares] = await contract.read.checkPosition([secondWalletAddress, 0]);
+      // Get the position directly from the contract's storage
+      // This is a more direct way to check the position's contribution
+      const positionIndex = 0;
+      const position = await contract.read.positionsByAddress([secondWalletAddress, positionIndex]);
 
-      // In the test environment, the position might not be created correctly
-      // Just verify the contract has the necessary functions
-      expect(typeof contract.read.tokensContributed).to.equal('function');
-      expect(typeof contract.read.cycles).to.equal('function');
+      // The position is returned as an array of values, not as a struct
+      // The first element is the contribution
+      const positionContribution = position[0];
+
+      // Calculate the fee for reference in later tests
+      const expectedFee = secondContribution * BigInt(contributorFee) / BigInt(percentScale);
+
+      // Verify the position contribution based on the cycle
+      const currentCycle = await contract.read.currentCycleNumber();
+      if (currentCycle === 0n) {
+        // In the first cycle, no fees are charged, so position contribution equals the full amount
+        expect(positionContribution).to.equal(secondContribution);
+      } else {
+        // In later cycles, fees are charged, so position contribution equals amount minus fee
+        const expectedContribution = secondContribution - expectedFee;
+        expect(positionContribution).to.equal(expectedContribution);
+      }
+
+      // Verify the contract's tokensContributed was updated
+      const tokensContributed = await contract.read.tokensContributed();
+      expect(tokensContributed).to.equal(secondContribution);
+
+      // Verify the cycle was updated
+      expect(currentCycle).to.equal(0n); // First cycle is 0
+
+      // In the first cycle, no contributor fees are charged
+      // Let's advance to the next cycle and make another contribution
+      await time.increase(Number(cycleLength) + 1);
+
+      // Make another contribution
+      const thirdContribution = parseUnits('20', 18);
+      await contract.write.contribute([thirdContribution]);
+
+      // Now check the cycle fees - in the next cycle, the fees from the third contribution should be added
+      // Get the current cycle number after the contribution
+      const newCycleNumber = await contract.read.currentCycleNumber();
+
+      // We need to check the last stored cycle, not necessarily the current cycle number
+      // Since we can't directly get the length of the cycles array, we'll use the current cycle number
+      // and check if that cycle exists
+      const lastCycleIndex = 1n; // We know we've advanced to cycle 1
+
+      // Check the cycle fees in the last stored cycle
+      const cycle = await contract.read.cycles([lastCycleIndex]);
+
+      // In the Solution contract, the first cycle (index 0) doesn't charge contributor fees
+      // The second cycle (index 1) should have the fees from the third contribution
+      // The cycle is returned as an array of values, not as a struct
+      // The third element (index 2) is the fees
+      const thirdContributionFee = thirdContribution * BigInt(contributorFee) / BigInt(percentScale);
+      expect(cycle[2]).to.equal(thirdContributionFee);
     });
   });
 
@@ -311,17 +360,57 @@ describe('Solution Contract', () => {
 
   describe('Goal Management', () => {
     it('should allow the owner to extend the goal', async () => {
-      const { contract } = await loadFixture(deploySolutionAndGetContract);
+      const { contract, upd } = await loadFixture(deploySolutionAndGetContract);
 
-      // Just verify the contract has the extendGoal function
-      expect(typeof contract.write.extendGoal).to.equal('function');
+      // Get initial goal
+      const initialGoal = await contract.read.fundingGoal();
+
+      // First, reach the goal
+      const contribution = initialGoal;
+      await upd.write.approve([contract.address, contribution]);
+      await contract.write.contribute([contribution]);
+
+      // Verify goal is reached by checking tokensContributed >= fundingGoal
+      const tokensContributed = await contract.read.tokensContributed();
+      const fundingGoal = await contract.read.fundingGoal();
+      expect(tokensContributed >= fundingGoal).to.be.true;
+
+      // Extend the goal
+      const newGoal = initialGoal * 2n;
+      await contract.write.extendGoal([newGoal]);
+
+      // Verify the goal was updated
+      const updatedGoal = await contract.read.fundingGoal();
+      expect(updatedGoal).to.equal(newGoal);
     });
 
     it('should allow the owner to extend the goal and deadline', async () => {
-      const { contract } = await loadFixture(deploySolutionAndGetContract);
+      const { contract, upd } = await loadFixture(deploySolutionAndGetContract);
 
-      // Just verify the contract has the extendGoal function
-      expect(typeof contract.write.extendGoal).to.equal('function');
+      // Get initial goal and deadline
+      const initialGoal = await contract.read.fundingGoal();
+      const initialDeadline = await contract.read.deadline();
+
+      // First, reach the goal
+      const contribution = initialGoal;
+      await upd.write.approve([contract.address, contribution]);
+      await contract.write.contribute([contribution]);
+
+      // Verify goal is reached by checking tokensContributed >= fundingGoal
+      const tokensContributed = await contract.read.tokensContributed();
+      const fundingGoal = await contract.read.fundingGoal();
+      expect(tokensContributed >= fundingGoal).to.be.true;
+
+      // Extend the goal and deadline
+      const newGoal = initialGoal * 2n;
+      const newDeadline = initialDeadline + 86400n; // Add 1 day
+      await contract.write.extendGoal([newGoal, newDeadline]);
+
+      // Verify the goal and deadline were updated
+      const updatedGoal = await contract.read.fundingGoal();
+      const updatedDeadline = await contract.read.deadline();
+      expect(updatedGoal).to.equal(newGoal);
+      expect(updatedDeadline).to.equal(newDeadline);
     });
 
     it('should not allow extending the goal to a lower value', async () => {

@@ -283,13 +283,17 @@ describe('Solution Contract Fee Collection Test', () => {
     console.log(`Difference between expected and actual fees: ${feesDifference}`);
 
     // Verify that all contributor fees were collected
-    // Allow for a small rounding error (less than 0.0001% of the fees)
-    const tolerance = expectedContributorFees / 1000000n;
-    console.log(`Tolerance: ${tolerance}`);
+    // Allow for a small rounding error (up to 4 wei) due to multiple divisions
+    const maxAllowedDifference = 4n;
+    console.log(`Maximum allowed difference: ${maxAllowedDifference} wei`);
 
     // This test verifies that all contributor fees can be collected from the Solution contract
     const absDifference = feesDifference < 0n ? -feesDifference : feesDifference;
-    expect(Number(absDifference) < Number(tolerance)).to.be.true;
+    expect(absDifference <= maxAllowedDifference).to.be.true;
+
+    if (absDifference > 0n) {
+      console.log(`Note: There was a difference of ${absDifference} wei, which is acceptable due to division rounding`);
+    }
 
     // Also verify that the contract's internal accounting is correct
     const contributedMinusWithdrawn = tokensContributedAfter - tokensWithdrawnAfter;
@@ -302,7 +306,11 @@ describe('Solution Contract Fee Collection Test', () => {
 
     // Verify that the contract's balance matches its internal accounting
     const absBalanceDifference = balanceDifference < 0n ? -balanceDifference : balanceDifference;
-    expect(Number(absBalanceDifference) < Number(tolerance)).to.be.true;
+    expect(absBalanceDifference <= maxAllowedDifference).to.be.true;
+
+    if (absBalanceDifference > 0n) {
+      console.log(`Note: There was a balance difference of ${absBalanceDifference} wei, which is acceptable due to division rounding`);
+    }
   });
 });
 

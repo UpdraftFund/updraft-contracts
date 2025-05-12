@@ -346,16 +346,20 @@ describe('Position Split Security Tests', () => {
       console.log(`Total fees collected: ${totalCollected}`);
 
       // Verify the total collected equals the initial position fees
-      // Allow for a small rounding error (less than 0.0001% of the fees)
-      const tolerance = initialPositionFees / 1000000n;
+      // Allow for a small rounding error (up to 3 wei) due to multiple divisions
+      const maxAllowedDifference = 3n;
       const difference = totalCollected > initialPositionFees
         ? totalCollected - initialPositionFees
         : initialPositionFees - totalCollected;
 
       console.log(`Difference between collected fees and initial fees: ${difference}`);
-      console.log(`Tolerance: ${tolerance}`);
+      console.log(`Maximum allowed difference: ${maxAllowedDifference} wei`);
 
-      expect(Number(difference)).to.be.lessThan(Number(tolerance));
+      expect(difference <= maxAllowedDifference).to.be.true;
+
+      if (difference > 0n) {
+        console.log(`Note: There was a difference of ${difference} wei, which is acceptable due to division rounding`);
+      }
     });
 
     it('should not allow gaining extra tokens by splitting positions multiple times', async () => {
@@ -471,16 +475,20 @@ describe('Position Split Security Tests', () => {
       console.log(`Total fees collected: ${totalCollected}`);
 
       // Verify the total collected equals the initial position fees
-      // Allow for a small rounding error (less than 0.0001% of the fees)
-      const tolerance = initialPositionFees / 1000000n;
+      // We should expect exact equality or at most a difference of 1 wei due to division rounding
+      const maxAllowedDifference = 1n;
       const difference = totalCollected > initialPositionFees
         ? totalCollected - initialPositionFees
         : initialPositionFees - totalCollected;
 
       console.log(`Difference between collected fees and initial fees: ${difference}`);
-      console.log(`Tolerance: ${tolerance}`);
+      console.log(`Maximum allowed difference: ${maxAllowedDifference} wei`);
 
-      expect(Number(difference)).to.be.lessThan(Number(tolerance));
+      expect(difference <= maxAllowedDifference).to.be.true;
+
+      if (difference > 0n) {
+        console.log(`Note: There was a difference of ${difference} wei, which is acceptable due to division rounding`);
+      }
     });
   });
 });
