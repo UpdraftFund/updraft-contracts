@@ -412,7 +412,7 @@ contract Idea {
             }
 
             // Calculate shares for this cycle based on the original tokens
-            shares += (accrualRate * (cycle.number - prevStoredCycle.number) * originalTokens) / percentScale;
+            shares += accrualRate * (cycle.number - prevStoredCycle.number) * originalTokens / percentScale;
 
             if (cycle.shares >= shares) {
                 // Distribute fees proportionally to shares
