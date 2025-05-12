@@ -61,7 +61,7 @@ const deploySolutionAndGetContract = async () => {
   // Solution parameters
   const stake = parseUnits('100', 18);
   const goal = parseUnits('10000', 18);
-  const deadline = Math.floor(Date.now() / 1000) + 86400; // 1 day from now
+  const deadline = Math.floor(Date.now() / 1000) + 86400 * 7; // 7 days from now
   const contributorFee = 100000; // 10%
   const solutionData = '0x5678';
 
