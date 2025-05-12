@@ -202,8 +202,10 @@ contract Solution is Ownable {
         if (goalFailed()) revert GoalFailed();
 
         address addr = msg.sender;
-        stake += amount;
-        stakes[addr] += amount;
+        unchecked {
+            stake += amount;
+            stakes[addr] += amount;
+        }
 
         stakingToken.safeTransferFrom(addr, address(this), amount);
         emit StakeUpdated(addr, stakes[addr], stake);
@@ -215,7 +217,9 @@ contract Solution is Ownable {
         address sender = msg.sender;
         uint256 amount = stakes[sender];
         stakes[sender] = 0;
-        stakes[receiver] += amount;
+        unchecked {
+            stakes[receiver] += amount;
+        }
         emit StakeTransferred(sender, receiver, amount, stakes[receiver]);
     }
 
@@ -234,6 +238,7 @@ contract Solution is Ownable {
 
     function withdrawFunds(address to, uint256 amount) external onlyOwner goalReached {
         if (amount <= totalTokens()) {
+            // Keep overflow checks for unknown token operations
             tokensWithdrawn += amount;
             fundingToken.safeTransfer(to, amount);
             emit FundsWithdrawn(to, amount, totalTokens());
@@ -299,11 +304,9 @@ contract Solution is Ownable {
 
         unchecked {
             lastIndex = positionIndexes.length - 1;
-        }
 
-        for (uint256 i; i <= lastIndex;) {
-            transferPosition(recipient, positionIndexes[i]);
-            unchecked {
+            for (uint256 i; i <= lastIndex;) {
+                transferPosition(recipient, positionIndexes[i]);
                 ++i;
             }
         }
@@ -322,11 +325,15 @@ contract Solution is Ownable {
     }
 
     function totalTokens() public view returns (uint256) {
-        return tokensContributed - tokensWithdrawn;
+        unchecked {
+            return tokensContributed - tokensWithdrawn;
+        }
     }
 
     function currentCycleNumber() public view returns (uint256) {
-        return (block.timestamp - startTime) / cycleLength;
+        unchecked {
+            return (block.timestamp - startTime) / cycleLength;
+        }
     }
 
     /// Did this Solution fail to reach its goal before the deadline?
@@ -357,7 +364,9 @@ contract Solution is Ownable {
 
         (uint256 feesEarned, uint256 shares) = positionToLastStoredCycle(addr, positionIndex);
 
-        positionsByAddress[addr][positionIndex].lastCollectedCycleIndex = cycles.length - 1;
+        unchecked {
+            positionsByAddress[addr][positionIndex].lastCollectedCycleIndex = cycles.length - 1;
+        }
 
         fundingToken.safeTransfer(addr, feesEarned);
         emit FeesCollected(addr, positionIndex, feesEarned);
@@ -371,8 +380,13 @@ contract Solution is Ownable {
         if (position.refunded) revert AlreadyRefunded();
         if (goalFailed()) {
             position.refunded = true;
-            uint256 positionShares = accrualRate * position.contribution
-                * (currentCycleNumber() - cycles[position.startCycleIndex].number) / percentScale;
+
+            uint256 cycleDiff;
+            unchecked {
+                cycleDiff = currentCycleNumber() - cycles[position.startCycleIndex].number;
+            }
+
+            uint256 positionShares = accrualRate * position.contribution * cycleDiff / percentScale;
             uint256 stakeAward = stake * positionShares / totalShares();
 
             fundingToken.safeTransfer(addr, position.contribution);
@@ -427,23 +441,21 @@ contract Solution is Ownable {
             position.contribution -= deductAmount;
         }
 
-        for (uint256 i = 1; i <= numSplits;) {
-            positions.push(
-                Position({
-                    contribution: amount,
-                    startCycleIndex: position.startCycleIndex,
-                    lastCollectedCycleIndex: position.lastCollectedCycleIndex,
-                    refunded: false
-                })
-            );
-            unchecked {
-                ++i;
-            }
-        }
-
         uint256 firstNewPositionIndex;
 
         unchecked {
+            for (uint256 i = 1; i <= numSplits;) {
+                positions.push(
+                    Position({
+                        contribution: amount,
+                        startCycleIndex: position.startCycleIndex,
+                        lastCollectedCycleIndex: position.lastCollectedCycleIndex,
+                        refunded: false
+                    })
+                );
+                ++i;
+            }
+
             firstNewPositionIndex = positions.length - numSplits;
         }
 
@@ -459,9 +471,8 @@ contract Solution is Ownable {
 
         unchecked {
             lastStoredCycle = cycles[cycles.length - 1];
+            return (accrualRate * (_cycleNumber - lastStoredCycle.number) * _tokens) / percentScale;
         }
-
-        return (accrualRate * (_cycleNumber - lastStoredCycle.number) * _tokens) / percentScale;
     }
 
     /// @notice Calculates the fees earned and shares for a position up to the last stored cycle
@@ -483,7 +494,7 @@ contract Solution is Ownable {
         uint256 lastStoredCycleIndex;
 
         unchecked {
-        // updateCyclesWithFee() will always add a cycle if none exists
+            // updateCyclesWithFee() will always add a cycle if none exists
             lastStoredCycleIndex = cycles.length - 1;
             loopIndex = position.lastCollectedCycleIndex + 1; // can't realistically overflow
         }
@@ -491,6 +502,7 @@ contract Solution is Ownable {
         for (uint256 i = loopIndex; i <= lastStoredCycleIndex;) {
             Cycle storage cycle = cycles[i];
 
+            // Keep overflow checks for unknown token operations
             shares = accrualRate * (cycle.number - firstCycleNumber) * contribution / percentScale;
             feesEarned += (cycle.fees * shares) / cycle.shares;
 
@@ -504,9 +516,13 @@ contract Solution is Ownable {
     /// @dev This function is called by contribute() and collectFees() to update the cycle data
     /// @param _contributorFee The contributor fee for this contribution
     function updateCyclesWithFee(uint256 _contributorFee) internal {
-        uint256 currentCycleNumber_ = currentCycleNumber();
+        uint256 currentCycleNumber_;
+        uint256 length;
 
-        uint256 length = cycles.length;
+        unchecked {
+            currentCycleNumber_ = currentCycleNumber();
+            length = cycles.length;
+        }
 
         if (length == 0) {
             // Create the first cycle in the array using the first contribution.
@@ -525,12 +541,14 @@ contract Solution is Ownable {
             if (lastStoredCycleNumber == currentCycleNumber_) {
                 // The first cycle doesn't charge contributor fees.
                 if (lastStoredCycleIndex != 0) {
+                    // Keep overflow checks for unknown token operations
                     lastStoredCycle.fees += _contributorFee;
                 }
             } else {
                 // Some cycle numbers might be skipped, so we need to accrue shares in between.
                 Cycle memory newCycle = Cycle({
                     number: currentCycleNumber_,
+                    // Keep overflow checks for unknown token operations
                     shares: lastStoredCycle.shares +
                         accrualRate * (currentCycleNumber_ - lastStoredCycleNumber) * tokensContributed / percentScale,
                     fees: _contributorFee,
