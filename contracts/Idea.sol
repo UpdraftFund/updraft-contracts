@@ -266,7 +266,7 @@ contract Idea {
     /// @return The number of shares all contributors hold in this choice.
     /// The total shares can be compared between two choices to see which has more support.
     function totalShares() public view returns (uint256) {
-        return cycles[cycles.length - 1].shares + pendingShares(currentCycleNumber(), tokens);
+        return cycles[cycles.length - 1].shares + pendingShares(currentCycleNumber(), tokens - contributorFees);
     }
 
     function currentCycleNumber() public view returns (uint256) {
@@ -285,14 +285,13 @@ contract Idea {
         uint256 positionIndex
     ) public view positionExists(addr, positionIndex) returns (uint256 positionTokens, uint256 shares) {
         (positionTokens, shares) = positionToLastStoredCycle(addr, positionIndex);
-        shares += pendingShares(currentCycleNumber(), positionTokens);
+        shares += pendingShares(currentCycleNumber(), positionsByAddress[addr][positionIndex].tokens);
     }
 
     /// @param positionIndex The positionIndex returned by the contribute() function.
     function withdraw(uint256 positionIndex) public positionExists(msg.sender, positionIndex) {
         address addr = msg.sender;
-        Position storage position = positionsByAddress[addr][positionIndex];
-        uint256 originalPosition = position.tokens;
+        uint256 originalPosition = positionsByAddress[addr][positionIndex].tokens;
 
         // Insert a new cycle to checkpoint all contributions until now.
         updateCyclesWithFee(0);
