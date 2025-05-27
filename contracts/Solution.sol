@@ -15,6 +15,7 @@ struct Cycle {
 
 struct Position {
     uint256 contribution;
+    uint256 contributionTime;
     uint256 startCycleIndex;
     uint256 lastCollectedCycleIndex;
     bool refunded;
@@ -184,6 +185,7 @@ contract Solution is Ownable {
         positionsByAddress[addr].push(
             Position({
                 contribution: amount,
+                contributionTime: block.timestamp,
                 startCycleIndex: lastStoredCycleIndex,
                 lastCollectedCycleIndex: lastStoredCycleIndex,
                 refunded: false
@@ -195,7 +197,7 @@ contract Solution is Ownable {
         }
 
         fundingToken.safeTransferFrom(addr, address(this), originalAmount);
-        emit Contributed(addr, positionIndex, originalAmount, totalShares(), totalTokens());
+        emit Contributed(addr, positionIndex, originalAmount, totalShares(), totalContributed, totalTokens());
     }
 
     function addStake(uint256 amount) external{
@@ -332,7 +334,13 @@ contract Solution is Ownable {
 
     function currentCycleNumber() public view returns (uint256) {
         unchecked {
-            return (block.timestamp - startTime) / cycleLength;
+            return cycleNumberAtTime(block.timestamp);
+        }
+    }
+
+    function cycleNumberAtTime(uint256 timestamp) public view returns (uint256) {
+        unchecked {
+            return (timestamp - startTime) / cycleLength;
         }
     }
 
@@ -448,6 +456,7 @@ contract Solution is Ownable {
                 positions.push(
                     Position({
                         contribution: amount,
+                        contributionTime: position.contributionTime,
                         startCycleIndex: position.startCycleIndex,
                         lastCollectedCycleIndex: position.lastCollectedCycleIndex,
                         refunded: false
