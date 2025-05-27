@@ -62,6 +62,7 @@ contract Solution is Ownable {
         uint256 positionIndex,
         uint256 amount,
         uint256 totalShares,
+        uint256 totalContributed,
         uint256 totalTokens
     );
     event PositionTransferred(
