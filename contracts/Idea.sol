@@ -250,9 +250,8 @@ contract Idea {
         unchecked {
             lastIndex = positionIndexes.length - 1;
 
-            for (uint256 i; i <= lastIndex;) {
+            for (uint256 i; i <= lastIndex; ++i) {
                 transferPosition(recipient, positionIndexes[i]);
-                ++i;
             }
         }
     }
@@ -365,9 +364,8 @@ contract Idea {
         uint256 firstNewPositionIndex;
 
         unchecked {
-            for (uint256 i = 1; i <= numSplits;) {
+            for (uint256 i = 1; i <= numSplits; ++i) {
                 positions.push(Position({startCycleIndex: position.startCycleIndex, tokens: amount}));
-                ++i;
             }
 
             firstNewPositionIndex = positions.length - numSplits;
