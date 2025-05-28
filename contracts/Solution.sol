@@ -15,6 +15,7 @@ struct Cycle {
 
 struct Position {
     uint256 contribution;
+    uint256 contributionTime;
     uint256 startCycleIndex;
     uint256 lastCollectedCycleIndex;
     bool refunded;
@@ -37,6 +38,7 @@ contract Solution is Ownable {
     uint256 public stake;
     uint256 public fundingGoal;
     uint256 public deadline;
+    uint256 public goalExtendedTime;
 
     Cycle[] public cycles;
 
@@ -91,6 +93,7 @@ contract Solution is Ownable {
     error MustSetDeadlineInFuture(uint256 deadline);
     error WithdrawMoreThanAvailable(uint256 amount, uint256 available);
     error AlreadyRefunded();
+    error ContributedBeforeGoalExtended(uint256 contributedTime, uint256 goalExtendedTime);
 
     modifier singlePosition(address addr) {
         uint256 positions = numPositions(addr);
@@ -185,6 +188,7 @@ contract Solution is Ownable {
         positionsByAddress[addr].push(
             Position({
                 contribution: amount,
+                contributionTime: block.timestamp,
                 startCycleIndex: lastStoredCycleIndex,
                 lastCollectedCycleIndex: lastStoredCycleIndex,
                 refunded: false
@@ -196,7 +200,7 @@ contract Solution is Ownable {
         }
 
         fundingToken.safeTransferFrom(addr, address(this), originalAmount);
-        emit Contributed(addr, positionIndex, originalAmount, totalShares(), totalContributed, totalTokens());
+        emit Contributed(addr, positionIndex, originalAmount, totalShares(), tokensContributed, totalTokens());
     }
 
     function addStake(uint256 amount) external{
@@ -237,22 +241,12 @@ contract Solution is Ownable {
         emit StakeUpdated(addr, stakes[addr], stake);
     }
 
-    function withdrawFunds(address to, uint256 amount) external onlyOwner goalReached {
-        if (amount <= totalTokens()) {
-            // Keep overflow checks for unknown token operations
-            tokensWithdrawn += amount;
-            fundingToken.safeTransfer(to, amount);
-            emit FundsWithdrawn(to, amount, totalTokens());
-        } else {
-            revert WithdrawMoreThanAvailable(amount, totalTokens());
-        }
-    }
-
     /// Extend the goal, keeping the deadline the same.
     function extendGoal(uint256 goal) external onlyOwner goalReached {
         if (goal <= fundingGoal) revert GoalMustIncrease(fundingGoal, goal);
         if (deadline <= block.timestamp) revert MustSetDeadlineInFuture(deadline);
-
+        withdrawFunds();
+        goalExtendedTime = block.timestamp;
         fundingGoal = goal;
         emit GoalExtended(goal, deadline);
     }
@@ -261,7 +255,8 @@ contract Solution is Ownable {
     function extendGoal(uint256 goal, uint256 deadline_) external onlyOwner goalReached {
         if (goal <= fundingGoal) revert GoalMustIncrease(fundingGoal, goal);
         if (deadline_ <= block.timestamp) revert MustSetDeadlineInFuture(deadline_);
-
+        withdrawFunds();
+        goalExtendedTime = block.timestamp;
         fundingGoal = goal;
         deadline = deadline_;
         emit GoalExtended(goal, deadline);
@@ -271,7 +266,8 @@ contract Solution is Ownable {
     function extendGoal(uint256 goal, uint256 deadline_, bytes calldata solutionData) external onlyOwner goalReached {
         if (goal <= fundingGoal) revert GoalMustIncrease(fundingGoal, goal);
         if (deadline_ <= block.timestamp) revert MustSetDeadlineInFuture(deadline_);
-
+        withdrawFunds();
+        goalExtendedTime = block.timestamp;
         fundingGoal = goal;
         deadline = deadline_;
         emit GoalExtended(goal, deadline);
@@ -332,7 +328,13 @@ contract Solution is Ownable {
 
     function currentCycleNumber() public view returns (uint256) {
         unchecked {
-            return (block.timestamp - startTime) / cycleLength;
+            return cycleNumberAtTime(block.timestamp);
+        }
+    }
+
+    function cycleNumberAtTime(uint256 timestamp) public view returns (uint256) {
+        unchecked {
+            return (timestamp - startTime) / cycleLength;
         }
     }
 
@@ -372,12 +374,33 @@ contract Solution is Ownable {
         emit FeesCollected(addr, positionIndex, feesEarned);
     }
 
+    /// Withdraw all funds to owner.
+    function withdrawFunds() public onlyOwner goalReached {
+        uint256 availableTokens = totalTokens();
+        if(availableTokens > 0) {
+            withdrawFunds(msg.sender, availableTokens);
+        }
+    }
+
+    function withdrawFunds(address to, uint256 amount) public onlyOwner goalReached {
+        if (amount <= totalTokens()) {
+            // Keep overflow checks for unknown token operations
+            tokensWithdrawn += amount;
+            fundingToken.safeTransfer(to, amount);
+            emit FundsWithdrawn(to, amount, totalTokens());
+        } else {
+            revert WithdrawMoreThanAvailable(amount, totalTokens());
+        }
+    }
+
     /// Get a refund and stake award after the goal fails.
     /// @param positionIndex The positionIndex returned by the contribute() function.
     function refund(uint256 positionIndex) public positionExists(msg.sender, positionIndex) {
         address addr = msg.sender;
         Position storage position = positionsByAddress[addr][positionIndex];
         if (position.refunded) revert AlreadyRefunded();
+        if (goalExtendedTime > 0 && position.contributionTime < goalExtendedTime)
+            revert ContributedBeforeGoalExtended(position.contributionTime, goalExtendedTime);
         if (goalFailed()) {
             position.refunded = true;
 
@@ -448,6 +471,7 @@ contract Solution is Ownable {
                 positions.push(
                     Position({
                         contribution: amount,
+                        contributionTime: position.contributionTime,
                         startCycleIndex: position.startCycleIndex,
                         lastCollectedCycleIndex: position.lastCollectedCycleIndex,
                         refunded: false

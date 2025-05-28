@@ -263,7 +263,7 @@ describe('Solution Contract', () => {
 
       // Get the position's last collected cycle index
       const position = await contract.read.positionsByAddress([secondWalletAddress, 0]);
-      const lastCollectedCycleIndex = position[2];
+      const lastCollectedCycleIndex = position[3]; // lastCollectedCycleIndex is at index 3
 
       // Get the current cycle index by checking the current cycle number
       const currentCycleNumber = await contract.read.currentCycleNumber();
@@ -284,7 +284,7 @@ describe('Solution Contract', () => {
       const updatedPosition = await contract.read.positionsByAddress([secondWalletAddress, 0]);
 
       // The lastCollectedCycleIndex should be updated to a higher value
-      expect(Number(updatedPosition[2])).to.be.gt(Number(lastCollectedCycleIndex));
+      expect(Number(updatedPosition[3])).to.be.gt(Number(lastCollectedCycleIndex)); // lastCollectedCycleIndex is at index 3
 
       // Verify that collecting fees again doesn't change the balance
       await contract.write.collectFees([0], { account: secondWallet.account });
@@ -561,7 +561,7 @@ describe('Solution Contract', () => {
 
       // Verify position is marked as refunded
       const position = await contract.read.positionsByAddress([secondWalletAddress, 0]);
-      expect(position[3]).to.equal(true); // refunded flag should be true
+      expect(position[4]).to.equal(true); // refunded flag should be true (index 4)
     });
 
     it('should not allow refunds if goal is reached', async () => {
@@ -616,6 +616,113 @@ describe('Solution Contract', () => {
 
       // Try to get refund before deadline
       await expect(contract.write.refund([0], { account: secondWallet.account })).to.be.rejected;
+    });
+
+    it('should not allow refunds for positions created before goal extension', async () => {
+      const { contract, upd } = await loadFixture(deploySolutionAndGetContract);
+
+      // Get a second wallet for testing
+      const [, secondWallet] = await hre.viem.getWalletClients();
+      const secondWalletAddress = secondWallet.account.address;
+
+      // Transfer tokens to second wallet
+      const transferAmount = parseUnits('100000', 18);
+      await upd.write.transfer([secondWalletAddress, transferAmount]);
+
+      // Approve the solution contract to spend tokens
+      await upd.write.approve([contract.address, transferAmount], { account: secondWallet.account });
+
+      // Second wallet contributes BEFORE goal extension
+      const secondContribution = parseUnits('5000', 18);
+      await contract.write.contribute([secondContribution], { account: secondWallet.account });
+
+      // First, reach the initial goal to enable goal extension
+      const initialGoal = await contract.read.fundingGoal();
+      const remainingToGoal = initialGoal - await contract.read.tokensContributed();
+      await upd.write.approve([contract.address, remainingToGoal]);
+      await contract.write.contribute([remainingToGoal]);
+
+      // Verify goal is reached
+      const tokensContributed = await contract.read.tokensContributed();
+      const fundingGoal = await contract.read.fundingGoal();
+      expect(tokensContributed >= fundingGoal).to.be.true;
+
+      // Extend the goal (this sets goalChangedTime to current timestamp)
+      const newGoal = initialGoal * 2n;
+      await contract.write.extendGoal([newGoal]);
+
+      // Verify the goal was extended
+      const updatedGoal = await contract.read.fundingGoal();
+      expect(updatedGoal).to.equal(newGoal);
+
+      // Advance time past the deadline to make the goal fail
+      const deadline = await contract.read.deadline();
+      await time.increaseTo(Number(deadline) + 1);
+
+      // Verify the goal has failed
+      const goalFailed = await contract.read.goalFailed();
+      expect(goalFailed).to.be.true;
+
+      // Try to get refund for position created BEFORE goal extension
+      // This should fail with ContributedBeforeGoalExtended error
+      await expect(
+        contract.write.refund([0], { account: secondWallet.account })
+      ).to.be.rejected;
+    });
+
+    it('should allow refunds for positions created after goal extension', async () => {
+      const { contract, upd } = await loadFixture(deploySolutionAndGetContract);
+
+      // Get wallets for testing
+      const [, secondWallet, thirdWallet] = await hre.viem.getWalletClients();
+      const secondWalletAddress = secondWallet.account.address;
+      const thirdWalletAddress = thirdWallet.account.address;
+
+      // Transfer tokens to wallets
+      const transferAmount = parseUnits('100000', 18);
+      await upd.write.transfer([secondWalletAddress, transferAmount]);
+      await upd.write.transfer([thirdWalletAddress, transferAmount]);
+
+      // Approve the solution contract to spend tokens
+      await upd.write.approve([contract.address, transferAmount], { account: secondWallet.account });
+      await upd.write.approve([contract.address, transferAmount], { account: thirdWallet.account });
+
+      // Second wallet contributes to reach the initial goal
+      const initialGoal = await contract.read.fundingGoal();
+      await contract.write.contribute([initialGoal], { account: secondWallet.account });
+
+      // Verify goal is reached
+      const tokensContributed = await contract.read.tokensContributed();
+      const fundingGoal = await contract.read.fundingGoal();
+      expect(tokensContributed >= fundingGoal).to.be.true;
+
+      // Extend the goal (this sets goalExtendedTime to current timestamp)
+      const newGoal = initialGoal * 2n;
+      await contract.write.extendGoal([newGoal]);
+
+      // Third wallet contributes AFTER goal extension
+      const thirdContribution = parseUnits('5000', 18);
+      await contract.write.contribute([thirdContribution], { account: thirdWallet.account });
+
+      // Advance time past the deadline to make the goal fail
+      const deadline = await contract.read.deadline();
+      await time.increaseTo(Number(deadline) + 1);
+
+      // Verify the goal has failed
+      const goalFailed = await contract.read.goalFailed();
+      expect(goalFailed).to.be.true;
+
+      // Get balance before refund
+      const balanceBefore = await upd.read.balanceOf([thirdWalletAddress]);
+
+      // Third wallet should be able to get refund for position created AFTER goal extension
+      await contract.write.refund([0], { account: thirdWallet.account });
+
+      // Get balance after refund
+      const balanceAfter = await upd.read.balanceOf([thirdWalletAddress]);
+
+      // Verify refund was successful (balance increased)
+      expect(balanceAfter > balanceBefore).to.be.true;
     });
   });
 
