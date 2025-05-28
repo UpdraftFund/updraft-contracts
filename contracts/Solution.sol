@@ -240,21 +240,11 @@ contract Solution is Ownable {
         emit StakeUpdated(addr, stakes[addr], stake);
     }
 
-    function withdrawFunds(address to, uint256 amount) external onlyOwner goalReached {
-        if (amount <= totalTokens()) {
-            // Keep overflow checks for unknown token operations
-            tokensWithdrawn += amount;
-            fundingToken.safeTransfer(to, amount);
-            emit FundsWithdrawn(to, amount, totalTokens());
-        } else {
-            revert WithdrawMoreThanAvailable(amount, totalTokens());
-        }
-    }
-
     /// Extend the goal, keeping the deadline the same.
     function extendGoal(uint256 goal) external onlyOwner goalReached {
         if (goal <= fundingGoal) revert GoalMustIncrease(fundingGoal, goal);
         if (deadline <= block.timestamp) revert MustSetDeadlineInFuture(deadline);
+        withdrawFunds();
         goalChangedTime = block.timestamp;
         fundingGoal = goal;
         emit GoalExtended(goal, deadline);
@@ -264,6 +254,7 @@ contract Solution is Ownable {
     function extendGoal(uint256 goal, uint256 deadline_) external onlyOwner goalReached {
         if (goal <= fundingGoal) revert GoalMustIncrease(fundingGoal, goal);
         if (deadline_ <= block.timestamp) revert MustSetDeadlineInFuture(deadline_);
+        withdrawFunds();
         goalChangedTime = block.timestamp;
         fundingGoal = goal;
         deadline = deadline_;
@@ -274,6 +265,7 @@ contract Solution is Ownable {
     function extendGoal(uint256 goal, uint256 deadline_, bytes calldata solutionData) external onlyOwner goalReached {
         if (goal <= fundingGoal) revert GoalMustIncrease(fundingGoal, goal);
         if (deadline_ <= block.timestamp) revert MustSetDeadlineInFuture(deadline_);
+        withdrawFunds();
         goalChangedTime = block.timestamp;
         fundingGoal = goal;
         deadline = deadline_;
@@ -379,6 +371,22 @@ contract Solution is Ownable {
 
         fundingToken.safeTransfer(addr, feesEarned);
         emit FeesCollected(addr, positionIndex, feesEarned);
+    }
+
+    /// Withdraw all funds to owner.
+    function withdrawFunds() public onlyOwner goalReached {
+        withdrawFunds(msg.sender, totalTokens());
+    }
+
+    function withdrawFunds(address to, uint256 amount) public onlyOwner goalReached {
+        if (amount <= totalTokens()) {
+            // Keep overflow checks for unknown token operations
+            tokensWithdrawn += amount;
+            fundingToken.safeTransfer(to, amount);
+            emit FundsWithdrawn(to, amount, totalTokens());
+        } else {
+            revert WithdrawMoreThanAvailable(amount, totalTokens());
+        }
     }
 
     /// Get a refund and stake award after the goal fails.
