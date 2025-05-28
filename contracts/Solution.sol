@@ -317,6 +317,9 @@ contract Solution is Ownable {
     /// @return The number of shares all contributors hold in this choice.
     /// The total shares can be compared between two choices to see which has more support.
     function totalShares() public view returns (uint256) {
+        if (cycles.length == 0) {
+            return 0;
+        }
         return cycles[cycles.length - 1].shares + pendingShares(currentCycleNumber(), tokensContributed);
     }
 
