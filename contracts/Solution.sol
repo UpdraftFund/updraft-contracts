@@ -38,6 +38,7 @@ contract Solution is Ownable {
     uint256 public stake;
     uint256 public fundingGoal;
     uint256 public deadline;
+    uint256 public goalChangedTime;
 
     Cycle[] public cycles;
 
@@ -254,7 +255,7 @@ contract Solution is Ownable {
     function extendGoal(uint256 goal) external onlyOwner goalReached {
         if (goal <= fundingGoal) revert GoalMustIncrease(fundingGoal, goal);
         if (deadline <= block.timestamp) revert MustSetDeadlineInFuture(deadline);
-
+        goalChangedTime = block.timestamp;
         fundingGoal = goal;
         emit GoalExtended(goal, deadline);
     }
@@ -263,7 +264,7 @@ contract Solution is Ownable {
     function extendGoal(uint256 goal, uint256 deadline_) external onlyOwner goalReached {
         if (goal <= fundingGoal) revert GoalMustIncrease(fundingGoal, goal);
         if (deadline_ <= block.timestamp) revert MustSetDeadlineInFuture(deadline_);
-
+        goalChangedTime = block.timestamp;
         fundingGoal = goal;
         deadline = deadline_;
         emit GoalExtended(goal, deadline);
@@ -273,7 +274,7 @@ contract Solution is Ownable {
     function extendGoal(uint256 goal, uint256 deadline_, bytes calldata solutionData) external onlyOwner goalReached {
         if (goal <= fundingGoal) revert GoalMustIncrease(fundingGoal, goal);
         if (deadline_ <= block.timestamp) revert MustSetDeadlineInFuture(deadline_);
-
+        goalChangedTime = block.timestamp;
         fundingGoal = goal;
         deadline = deadline_;
         emit GoalExtended(goal, deadline);
