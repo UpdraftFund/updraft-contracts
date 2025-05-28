@@ -399,7 +399,7 @@ contract Solution is Ownable {
         address addr = msg.sender;
         Position storage position = positionsByAddress[addr][positionIndex];
         if (position.refunded) revert AlreadyRefunded();
-        if (position.contributionTime < goalExtendedTime)
+        if (goalExtendedTime > 0 && position.contributionTime < goalExtendedTime)
             revert ContributedBeforeGoalExtended(position.contributionTime, goalExtendedTime);
         if (goalFailed()) {
             position.refunded = true;
