@@ -38,7 +38,7 @@ contract Solution is Ownable {
     uint256 public stake;
     uint256 public fundingGoal;
     uint256 public deadline;
-    uint256 public goalChangedTime;
+    uint256 public goalExtendedTime;
 
     Cycle[] public cycles;
 
@@ -93,6 +93,7 @@ contract Solution is Ownable {
     error MustSetDeadlineInFuture(uint256 deadline);
     error WithdrawMoreThanAvailable(uint256 amount, uint256 available);
     error AlreadyRefunded();
+    error ContributedBeforeGoalExtended(uint256 contributedTime, uint256 goalExtendedTime);
 
     modifier singlePosition(address addr) {
         uint256 positions = numPositions(addr);
@@ -245,7 +246,7 @@ contract Solution is Ownable {
         if (goal <= fundingGoal) revert GoalMustIncrease(fundingGoal, goal);
         if (deadline <= block.timestamp) revert MustSetDeadlineInFuture(deadline);
         withdrawFunds();
-        goalChangedTime = block.timestamp;
+        goalExtendedTime = block.timestamp;
         fundingGoal = goal;
         emit GoalExtended(goal, deadline);
     }
@@ -255,7 +256,7 @@ contract Solution is Ownable {
         if (goal <= fundingGoal) revert GoalMustIncrease(fundingGoal, goal);
         if (deadline_ <= block.timestamp) revert MustSetDeadlineInFuture(deadline_);
         withdrawFunds();
-        goalChangedTime = block.timestamp;
+        goalExtendedTime = block.timestamp;
         fundingGoal = goal;
         deadline = deadline_;
         emit GoalExtended(goal, deadline);
@@ -266,7 +267,7 @@ contract Solution is Ownable {
         if (goal <= fundingGoal) revert GoalMustIncrease(fundingGoal, goal);
         if (deadline_ <= block.timestamp) revert MustSetDeadlineInFuture(deadline_);
         withdrawFunds();
-        goalChangedTime = block.timestamp;
+        goalExtendedTime = block.timestamp;
         fundingGoal = goal;
         deadline = deadline_;
         emit GoalExtended(goal, deadline);
@@ -398,6 +399,8 @@ contract Solution is Ownable {
         address addr = msg.sender;
         Position storage position = positionsByAddress[addr][positionIndex];
         if (position.refunded) revert AlreadyRefunded();
+        if (position.contributionTime < goalExtendedTime)
+            revert ContributedBeforeGoalExtended(position.contributionTime, goalExtendedTime);
         if (goalFailed()) {
             position.refunded = true;
 
