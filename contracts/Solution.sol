@@ -375,7 +375,10 @@ contract Solution is Ownable {
 
     /// Withdraw all funds to owner.
     function withdrawFunds() public onlyOwner goalReached {
-        withdrawFunds(msg.sender, totalTokens());
+        uint256 totalTokens = totalTokens();
+        if(totalTokens > 0) {
+            withdrawFunds(msg.sender, totalTokens);
+        }
     }
 
     function withdrawFunds(address to, uint256 amount) public onlyOwner goalReached {
