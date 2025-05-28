@@ -200,7 +200,7 @@ contract Solution is Ownable {
         }
 
         fundingToken.safeTransferFrom(addr, address(this), originalAmount);
-        emit Contributed(addr, positionIndex, originalAmount, totalShares(), totalContributed, totalTokens());
+        emit Contributed(addr, positionIndex, originalAmount, totalShares(), tokensContributed, totalTokens());
     }
 
     function addStake(uint256 amount) external{
@@ -376,9 +376,9 @@ contract Solution is Ownable {
 
     /// Withdraw all funds to owner.
     function withdrawFunds() public onlyOwner goalReached {
-        uint256 totalTokens = totalTokens();
-        if(totalTokens > 0) {
-            withdrawFunds(msg.sender, totalTokens);
+        uint256 availableTokens = totalTokens();
+        if(availableTokens > 0) {
+            withdrawFunds(msg.sender, availableTokens);
         }
     }
 
