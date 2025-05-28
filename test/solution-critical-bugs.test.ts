@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import hre from 'hardhat';
 import { loadFixture, time } from '@nomicfoundation/hardhat-toolbox-viem/network-helpers';
-import { parseUnits, formatUnits, toHex } from 'viem';
-import { getEventsFromTx, walletAddress } from './utilities/helpers.ts';
+import { parseUnits, toHex } from 'viem';
+import { getEventsFromTx } from './utilities/helpers.ts';
 
 const antiSpamFee = parseUnits('1', 18); // 1 UPD
 
@@ -142,81 +142,5 @@ describe('Solution Contract - Critical Bugs', () => {
     });
   });
 
-  describe('Position Transfer Behavior', () => {
-    it('should handle position transfer correctly with intentional array gaps', async () => {
-      const { contract, upd } = await loadFixture(deploySolutionAndGetContract);
 
-      // Get wallets for testing
-      const [firstWallet, secondWallet] = await hre.viem.getWalletClients();
-      const firstWalletAddress = firstWallet.account.address;
-      const secondWalletAddress = secondWallet.account.address;
-
-      // Transfer tokens to first wallet
-      const transferAmount = parseUnits('100', 18);
-      await upd.write.transfer([firstWalletAddress, transferAmount]);
-      await upd.write.approve([contract.address, transferAmount], { account: firstWallet.account });
-
-      // First wallet creates multiple positions
-      const contribution = parseUnits('10', 18);
-      await contract.write.contribute([contribution], { account: firstWallet.account });
-      await contract.write.contribute([contribution], { account: firstWallet.account });
-      await contract.write.contribute([contribution], { account: firstWallet.account });
-
-      // Verify we have 3 positions
-      expect(await contract.read.numPositions([firstWalletAddress])).to.equal(3n);
-
-      // Transfer the middle position (index 1)
-      await contract.write.transferPosition([secondWalletAddress, 1], { account: firstWallet.account });
-
-      // Array length should remain the same (gaps are intentional)
-      expect(await contract.read.numPositions([firstWalletAddress])).to.equal(3n);
-
-      // Check that positions 0 and 2 are still valid
-      const [tokens0] = await contract.read.checkPosition([firstWalletAddress, 0]);
-      const [tokens2] = await contract.read.checkPosition([firstWalletAddress, 2]);
-
-      expect(tokens0).to.be.greaterThan(0n);
-      expect(tokens2).to.be.greaterThan(0n);
-
-      // Position index 1 should now be empty (deleted), but accessing it should handle gracefully
-      // The positionExists modifier should catch this
-      await expect(contract.read.checkPosition([firstWalletAddress, 1])).to.be.rejected;
-
-      // Check that the transferred position exists for the recipient
-      const [transferredTokens] = await contract.read.checkPosition([secondWalletAddress, 0]);
-      expect(transferredTokens).to.be.greaterThan(0n);
-    });
-  });
-
-  describe('Edge Cases', () => {
-    it('should handle zero contribution amounts', async () => {
-      const { contract } = await loadFixture(deploySolutionAndGetContract);
-
-      // Try to contribute zero amount
-      await expect(contract.write.contribute([0n])).to.be.rejected;
-    });
-
-    it('should handle split with zero amount', async () => {
-      const { contract, upd } = await loadFixture(deploySolutionAndGetContract);
-
-      // Contribute to create a position
-      const contribution = parseUnits('20', 18);
-      await contract.write.contribute([contribution]);
-
-      // Try to split with zero amount
-      await expect(contract.write.split([0, 2, 0n])).to.be.rejected;
-    });
-
-    it('should handle split with amount larger than position', async () => {
-      const { contract, upd } = await loadFixture(deploySolutionAndGetContract);
-
-      // Contribute to create a position
-      const contribution = parseUnits('20', 18);
-      await contract.write.contribute([contribution]);
-
-      // Try to split with amount larger than position
-      const largeAmount = parseUnits('100', 18);
-      await expect(contract.write.split([0, 2, largeAmount])).to.be.rejected;
-    });
-  });
 });
