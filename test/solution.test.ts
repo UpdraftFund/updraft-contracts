@@ -263,7 +263,7 @@ describe('Solution Contract', () => {
 
       // Get the position's last collected cycle index
       const position = await contract.read.positionsByAddress([secondWalletAddress, 0]);
-      const lastCollectedCycleIndex = position[2];
+      const lastCollectedCycleIndex = position[3]; // lastCollectedCycleIndex is at index 3
 
       // Get the current cycle index by checking the current cycle number
       const currentCycleNumber = await contract.read.currentCycleNumber();
@@ -284,7 +284,7 @@ describe('Solution Contract', () => {
       const updatedPosition = await contract.read.positionsByAddress([secondWalletAddress, 0]);
 
       // The lastCollectedCycleIndex should be updated to a higher value
-      expect(Number(updatedPosition[2])).to.be.gt(Number(lastCollectedCycleIndex));
+      expect(Number(updatedPosition[3])).to.be.gt(Number(lastCollectedCycleIndex)); // lastCollectedCycleIndex is at index 3
 
       // Verify that collecting fees again doesn't change the balance
       await contract.write.collectFees([0], { account: secondWallet.account });
@@ -561,7 +561,7 @@ describe('Solution Contract', () => {
 
       // Verify position is marked as refunded
       const position = await contract.read.positionsByAddress([secondWalletAddress, 0]);
-      expect(position[3]).to.equal(true); // refunded flag should be true
+      expect(position[4]).to.equal(true); // refunded flag should be true (index 4)
     });
 
     it('should not allow refunds if goal is reached', async () => {
