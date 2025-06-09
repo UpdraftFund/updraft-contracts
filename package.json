@@ -11,7 +11,7 @@
     "@nomicfoundation/hardhat-ignition-viem": "^0.15.0",
     "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
     "@nomicfoundation/hardhat-toolbox-viem": "^3.0.0",
-    "@nomicfoundation/hardhat-verify": "^2.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.14",
     "@nomicfoundation/hardhat-viem": "^2.0.0",
     "@truffle/dashboard-hardhat-plugin": "^0.2.15",
     "@types/chai": "^4.2.0",
