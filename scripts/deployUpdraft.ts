@@ -12,8 +12,8 @@ async function deploy(network) {
   // By keeping it a power of 10, we can make it easier to equate "shares" to the number of tokens contributed times hours passed.
   const accrualRate = 100000; // 10%
   const cycleLength = 12 * 60 * 60; // 12 hours in seconds
-  const humanity = '0xdC0046B52e2E38AEe2271B6171ebb65cCD337518';
-  const args = [feeToken, minFee, percentFee, cycleLength, accrualRate, humanity];
+  const faucet = '0x017F2A266a9833635aC4Ab6F242ed54087E54C50';
+  const args = [feeToken, minFee, percentFee, cycleLength, accrualRate, faucet];
 
   const updraft = await hre.viem.deployContract('Updraft', args);
 
