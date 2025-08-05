@@ -569,6 +569,7 @@ contract Solution is Ownable {
                 if (lastStoredCycleIndex != 0) {
                     // Keep overflow checks for unknown token operations
                     lastStoredCycle.fees += _contributorFee;
+                    lastStoredCycle.hasContributions = lastStoredCycle.fees > 0;
                 }
             } else {
                 // Some cycle numbers might be skipped, so we need to accrue shares in between.
