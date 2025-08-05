@@ -159,7 +159,7 @@ contract Idea {
 
             tokens += amount;
 
-            // updateCyclesWithFee() will always add a cycle if none exists
+        // updateCyclesWithFee() will always add a cycle if none exists
             lastStoredCycleIndex = cycles.length - 1;
 
             if (lastStoredCycleIndex > 0) {
@@ -204,16 +204,16 @@ contract Idea {
             fee = max(minFee, amount * percentFee / percentScale);
             amount -= fee;
 
-            // The entire amount (minus anti-spam fee) is counted as contributor fee
+        // The entire amount (minus anti-spam fee) is counted as contributor fee
             uint256 _contributorFee = amount;
 
-            // Update cycles with the amount as a contribution and the entire amount as contributor fee
+        // Update cycles with the amount as a contribution and the entire amount as contributor fee
             updateCyclesWithFee(_contributorFee);
 
             tokens += amount;
             contributorFees += _contributorFee;
 
-            // updateCyclesAddingAmount() will always add a cycle if none exists
+        // updateCyclesAddingAmount() will always add a cycle if none exists
             lastStoredCycleIndex = cycles.length - 1;
         }
 
@@ -401,16 +401,16 @@ contract Idea {
         uint256 lastStoredCycleIndex;
 
         unchecked {
-            // updateCyclesWithFee() will always add a cycle if none exists
+        // updateCyclesWithFee() will always add a cycle if none exists
             lastStoredCycleIndex = cycles.length - 1;
             loopIndex = position.startCycleIndex + 1; // can't realistically overflow
         }
 
-        for (uint256 i = loopIndex; i <= lastStoredCycleIndex; ) {
+        for (uint256 i = loopIndex; i <= lastStoredCycleIndex;) {
             Cycle storage cycle = cycles[i];
 
             unchecked {
-                // Calculate shares for this cycle based on the original tokens
+            // Calculate shares for this cycle based on the original tokens
                 shares = accrualRate * (cycle.number - firstCycleNumber) * originalTokens / percentScale;
 
                 positionTokens += (cycle.fees * shares) / cycle.shares;
@@ -448,6 +448,7 @@ contract Idea {
                 if (lastStoredCycleIndex != 0) {
                     unchecked {
                         lastStoredCycle.fees += _contributorFee;
+                        lastStoredCycle.hasContributions = lastStoredCycle.fees > 0;
                     }
                 }
             } else {
