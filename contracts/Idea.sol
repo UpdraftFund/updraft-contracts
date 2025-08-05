@@ -57,7 +57,8 @@ contract Idea {
         uint256 positionIndex,
         uint256 amount,
         uint256 totalShares,
-        uint256 totalTokens
+        uint256 totalTokens,
+        bool indexed isAirdrop
     );
     event PositionTransferred(
         address indexed sender,
@@ -180,7 +181,7 @@ contract Idea {
         token.safeTransferFrom(addr, address(this), originalAmount);
         token.safeTransfer(faucet, fee);
 
-        emit Contributed(addr, positionIndex, originalAmount, totalShares(), tokens);
+        emit Contributed(addr, positionIndex, originalAmount, totalShares(), tokens, false);
     }
 
     /// @notice Donates to past contributors with no expectation of return
@@ -228,7 +229,7 @@ contract Idea {
         token.safeTransferFrom(addr, address(this), originalAmount);
         token.safeTransfer(faucet, fee);
 
-        emit Contributed(addr, positionIndex, originalAmount, totalShares(), tokens);
+        emit Contributed(addr, positionIndex, originalAmount, totalShares(), tokens, true);
     }
 
     /// Withdraw the only position
