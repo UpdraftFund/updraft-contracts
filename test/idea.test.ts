@@ -16,8 +16,8 @@ const deployUpdraft = async () => {
   const percentFee = 10000; // 1%
   const accrualRate = 100000; // 10% - higher for easier testing
   const cycleLength = 3600; // 1 hour in seconds
-  const humanity = '0xdC0046B52e2E38AEe2271B6171ebb65cCD337518';
-  const args = [feeToken, antiSpamFee, percentFee, cycleLength, accrualRate, humanity];
+  const faucet = '0xdC0046B52e2E38AEe2271B6171ebb65cCD337518';
+  const args = [feeToken, antiSpamFee, percentFee, cycleLength, accrualRate, faucet];
   const updraft = await hre.viem.deployContract('Updraft', args);
   return { updraft, upd };
 };

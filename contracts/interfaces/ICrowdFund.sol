@@ -27,6 +27,6 @@ interface ICrowdFund {
     /// and the only fee paid for creating Solutions and updating Profiles.
     function minFee() external view returns (uint256);
 
-    /// The fund that collects and distributes a universal dividend.
-    function humanity() external view returns (address);
+    /// The faucet that distributes UPD to everyone who is verified as a unique human.
+    function faucet() external view returns (address);
 }

@@ -14,22 +14,22 @@ const deployUpdraft = async () => {
   const percentFee = 10000; // 1%
   const accrualRate = 50000; // 5% - matching real world
   const cycleLength = 12 * 3600; // 12 hours - matching real world
-  const humanity = '0xdC0046B52e2E38AEe2271B6171ebb65cCD337518';
-  const args = [feeToken, antiSpamFee, percentFee, cycleLength, accrualRate, humanity];
+  const faucet = '0xdC0046B52e2E38AEe2271B6171ebb65cCD337518';
+  const args = [feeToken, antiSpamFee, percentFee, cycleLength, accrualRate, faucet];
   const updraft = await hre.viem.deployContract('Updraft', args);
-  return { updraft, upd, humanity };
+  return { updraft, upd, faucet };
 };
 
 const deployUpdraftAndApproveToSpendUPD = async () => {
-  const { updraft, upd, humanity } = await loadFixture(deployUpdraft);
+  const { updraft, upd, faucet } = await loadFixture(deployUpdraft);
   // Approve a very large amount to avoid allowance issues
   await upd.write.approve([updraft.address, parseUnits('10000000', 18)]);
-  return { updraft, upd, humanity };
+  return { updraft, upd, faucet };
 };
 
 describe('Withdrawal Cycle Airdrop Bug', () => {
   it('should reproduce the bug where airdrop in withdrawal cycle gets skipped', async () => {
-    const { updraft, upd, humanity } = await loadFixture(deployUpdraftAndApproveToSpendUPD);
+    const { updraft, upd, faucet } = await loadFixture(deployUpdraftAndApproveToSpendUPD);
     const publicClient = await hre.viem.getPublicClient();
 
     // Create idea with 5% contributor fee

@@ -29,7 +29,7 @@ contract Idea {
     uint256 public immutable percentScale;
     uint256 public immutable minFee;
     uint256 public immutable percentFee;
-    address public immutable humanity;
+    address public immutable faucet;
 
     /// @notice The total number of tokens in this Choice.
     /// @dev This should equal balanceOf(address(this)),
@@ -110,12 +110,12 @@ contract Idea {
         _;
     }
 
-    constructor(uint256 contributorFee_, address humanity_) {
+    constructor(uint256 contributorFee_, address faucet_) {
         crowdFund = ICrowdFund(msg.sender);
         startTime = block.timestamp;
 
         contributorFee = contributorFee_;
-        humanity = humanity_;
+        faucet = faucet_;
 
         cycleLength = crowdFund.cycleLength();
         accrualRate = crowdFund.accrualRate();
@@ -123,7 +123,7 @@ contract Idea {
         percentScale = crowdFund.percentScale();
         minFee = crowdFund.minFee();
         percentFee = crowdFund.percentFee();
-        contributorFees = 0; // Initialize contributor fees tracking
+        contributorFees = 0;
 
         if (contributorFee > percentScale) {
             revert ContributorFeeOverOneHundredPercent();
@@ -178,7 +178,7 @@ contract Idea {
         }
 
         token.safeTransferFrom(addr, address(this), originalAmount);
-        token.safeTransfer(humanity, fee);
+        token.safeTransfer(faucet, fee);
 
         emit Contributed(addr, positionIndex, originalAmount, totalShares(), tokens);
     }
@@ -226,7 +226,7 @@ contract Idea {
         }
 
         token.safeTransferFrom(addr, address(this), originalAmount);
-        token.safeTransfer(humanity, fee);
+        token.safeTransfer(faucet, fee);
 
         emit Contributed(addr, positionIndex, originalAmount, totalShares(), tokens);
     }
