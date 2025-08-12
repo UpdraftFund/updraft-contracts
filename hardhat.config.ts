@@ -1,8 +1,8 @@
-import type { HardhatUserConfig } from 'hardhat/config';
-import '@nomicfoundation/hardhat-toolbox-viem';
-import '@truffle/dashboard-hardhat-plugin';
+import type { HardhatUserConfig } from "hardhat/config";
+import "@nomicfoundation/hardhat-toolbox-viem";
+import "@truffle/dashboard-hardhat-plugin";
 
-import { etherscan } from "./apiKeys.json";
+// import { etherscan } from "./apiKeys.json";
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -10,16 +10,16 @@ const config: HardhatUserConfig = {
     settings: {
       optimizer: {
         enabled: true,
-        runs: 10
-      }
-    }
+        runs: 10,
+      },
+    },
   },
   etherscan: {
-    apiKey: etherscan
+    // apiKey: etherscan,
   },
   sourcify: {
-    enabled: false
-  }
+    enabled: false,
+  },
 };
 
 export default config;
