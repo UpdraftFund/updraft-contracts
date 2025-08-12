@@ -6,16 +6,14 @@ import { loadFixture, time } from "@nomicfoundation/hardhat-toolbox-viem/network
 // Mock BrightID verifier contract for testing
 const deployMockBrightID = async () => {
   const brightId = await hre.viem.deployContract("MockBrightID");
-  console.log("Deployed MockBrightID at:", brightId.address);
   return { brightId };
 };
 
 const deployCookieJar = async () => {
-  console.log("Starting deployCookieJar");
+  // console.log("Starting deployCookieJar");
   // Deploy fresh contracts instead of using loadFixture to avoid caching issues
   const upd = await hre.viem.deployContract("UPDToken");
   const mockBrightId = await hre.viem.deployContract("MockBrightID");
-  console.log("Deployed fresh MockBrightID at:", mockBrightId.address);
 
   // Get owner wallet
   const [ownerWallet] = await hre.viem.getWalletClients();
@@ -36,21 +34,8 @@ const deployCookieJar = async () => {
 
 // Mock BrightID contract for testing
 const deployMockBrightIDAndCookieJar = async () => {
-  console.log("Starting deployMockBrightIDAndCookieJar");
   // Deploy a fresh MockBrightID contract instead of using loadFixture to avoid caching issues
   const mockBrightId = await hre.viem.deployContract("MockBrightID");
-  console.log("Deployed fresh MockBrightID at:", mockBrightId.address);
-
-  // Test that the contract is properly deployed
-  try {
-    const testResult = await mockBrightId.read.isVerified([
-      "0x0000000000000000000000000000000000000000000000000000000000000000",
-      mockBrightId.address,
-    ]);
-    console.log("Test call to isVerified on fresh MockBrightID succeeded, result:", testResult);
-  } catch (error) {
-    console.log("Test call to isVerified on fresh MockBrightID failed:", error);
-  }
 
   // Deploy a fresh UPD token contract instead of using loadFixture to avoid caching issues
   const upd = await hre.viem.deployContract("UPDToken");
@@ -65,9 +50,6 @@ const deployMockBrightIDAndCookieJar = async () => {
     mockBrightId.address,
     context,
   ]);
-  console.log("Deployed CookieJar at:", cookieJar.address);
-  console.log("MockBrightID address:", mockBrightId.address);
-  console.log("Are they the same?", cookieJar.address === mockBrightId.address);
 
   // Fund the cookie jar with some UPD tokens
   const fundAmount = parseUnits("1000", 18);
@@ -80,16 +62,6 @@ describe("UpdCookieJar", () => {
   describe("Deployment", () => {
     it("should deploy successfully with correct parameters", async () => {
       const { cookieJar, upd, brightId: mockBrightId, context } = await loadFixture(deployCookieJar);
-
-      // Diagnostic logging
-      console.log("In Deployment test - CookieJar address:", cookieJar.address);
-      console.log("In Deployment test - MockBrightID address:", mockBrightId.address);
-      console.log("In Deployment test - Are they the same?", cookieJar.address === mockBrightId.address);
-
-      // Test that the MockBrightID contract is working correctly
-      console.log("In Deployment test - About to test isVerified on MockBrightID at:", mockBrightId.address);
-      const isVerifiedResult = await mockBrightId.read.isVerified([context, mockBrightId.address]);
-      console.log("In Deployment test - isVerified result:", isVerifiedResult);
 
       expect((await cookieJar.read.token()).toLowerCase()).to.equal(upd.address.toLowerCase());
       expect((await cookieJar.read.brightId()).toLowerCase()).to.equal(mockBrightId.address.toLowerCase());
@@ -117,63 +89,12 @@ describe("UpdCookieJar", () => {
     it("should allow verified users to claim tokens", async () => {
       const { cookieJar, upd, brightId: mockBrightId, context } = await loadFixture(deployMockBrightIDAndCookieJar);
 
-      // Diagnostic logging
-      console.log("CookieJar address:", cookieJar.address);
-      console.log("MockBrightID address:", mockBrightId.address);
-      console.log("Are they the same?", cookieJar.address === mockBrightId.address);
-
       // Get test wallet
       const [walletClient] = await hre.viem.getWalletClients();
       const userAddress = walletClient.account.address;
 
       // Verify the user in the mock BrightID contract
-      console.log("About to call verifyUserForContext on MockBrightID at:", mockBrightId.address);
-      console.log("Context:", context);
-      console.log("User address:", userAddress);
-
-      // Check the current state before verification
-      try {
-        const isVerifiedBefore = await mockBrightId.read.isVerified([context, userAddress]);
-        console.log("Is user verified before verification:", isVerifiedBefore);
-      } catch (error) {
-        console.log("Error checking verification status before verification:", error);
-      }
-
       await mockBrightId.write.verifyUserForContext([context, userAddress]);
-      console.log("Called verifyUserForContext successfully");
-
-      // Check that the user is verified in the MockBrightID contract
-      console.log("About to call isVerified on MockBrightID at:", mockBrightId.address);
-      console.log("Context:", context);
-      console.log("User address:", userAddress);
-
-      // Add more diagnostic logging
-      try {
-        console.log("About to call isVerified with context:", context, "and user address:", userAddress);
-        const isVerifiedInMock = await mockBrightId.read.isVerified([context, userAddress]);
-        console.log("User verified in MockBrightID:", isVerifiedInMock);
-      } catch (error) {
-        console.log("Error calling isVerified on MockBrightID:", error);
-        // Try calling isVerified with different parameters to see if it works
-        try {
-          console.log("Trying isVerified with zero context and contract address");
-          const testResult = await mockBrightId.read.isVerified([
-            "0x0000000000000000000000000000000000000000000000000000000000000000",
-            mockBrightId.address,
-          ]);
-          console.log("Test call to isVerified with different parameters succeeded, result:", testResult);
-        } catch (testError) {
-          console.log("Test call to isVerified with different parameters also failed:", testError);
-        }
-      }
-
-      // Check what address is stored in the CookieJar's brightId field
-      const brightIdAddressInCookieJar = await cookieJar.read.brightId();
-      console.log("BrightID address stored in CookieJar:", brightIdAddressInCookieJar);
-      console.log(
-        "Does it match MockBrightID address?",
-        brightIdAddressInCookieJar.toLowerCase() === mockBrightId.address.toLowerCase(),
-      );
 
       // Check initial balance
       const initialBalance = await upd.read.balanceOf([userAddress]);
@@ -235,7 +156,7 @@ describe("UpdCookieJar", () => {
 
       // Check initial contract balance
       let contractBalance = await upd.read.balanceOf([cookieJar.address]);
-      console.log("Initial contract balance:", contractBalance.toString());
+      // console.log("Initial contract balance:", contractBalance.toString());
 
       // Drain the contract by having users claim all tokens
       // First claim
@@ -243,7 +164,7 @@ describe("UpdCookieJar", () => {
 
       // Check contract balance after first claim
       contractBalance = await upd.read.balanceOf([cookieJar.address]);
-      console.log("Contract balance after first claim:", contractBalance.toString());
+      // console.log("Contract balance after first claim:", contractBalance.toString());
 
       // Transfer more tokens to the contract to allow multiple claims
       const fundAmount = parseUnits("1000", 18);
@@ -251,7 +172,7 @@ describe("UpdCookieJar", () => {
 
       // Check contract balance after funding
       contractBalance = await upd.read.balanceOf([cookieJar.address]);
-      console.log("Contract balance after funding:", contractBalance.toString());
+      // console.log("Contract balance after funding:", contractBalance.toString());
 
       // Wait for cooldown period to expire before making more claims
       // We need to advance time by at least 7 days (COOLDOWN period)
@@ -265,12 +186,12 @@ describe("UpdCookieJar", () => {
         // Increase limit to 1000
         // Safety limit
         try {
-          console.log("Attempting claim #" + (claimCount + 1));
+          // console.log("Attempting claim #" + (claimCount + 1));
           await cookieJar.write.claim({ account: walletClient.account });
           claimCount++;
           // Check contract balance after each claim
           contractBalance = await upd.read.balanceOf([cookieJar.address]);
-          console.log("Contract balance after claim #" + claimCount + ":", contractBalance.toString());
+          // console.log("Contract balance after claim #" + claimCount + ":", contractBalance.toString());
 
           // Wait for cooldown period to expire before next claim
           // We need to advance time by at least 7 days (COOLDOWN period)
@@ -279,7 +200,7 @@ describe("UpdCookieJar", () => {
           // Break if balance is low enough that next claim would fail
           if (contractBalance < 2n * 10n ** 18n) {
             // Less than 2 UPD tokens
-            console.log("Contract balance is low, stopping claims");
+            // console.log("Contract balance is low, stopping claims");
             break;
           }
         } catch (error) {
@@ -290,7 +211,7 @@ describe("UpdCookieJar", () => {
 
       // Check final contract balance
       contractBalance = await upd.read.balanceOf([cookieJar.address]);
-      console.log("Final contract balance:", contractBalance.toString());
+      // console.log("Final contract balance:", contractBalance.toString());
 
       // Wait for cooldown period to expire before final claim attempt
       await time.increase(7 * 24 * 60 * 60 + 1); // 7 days + 1 second
