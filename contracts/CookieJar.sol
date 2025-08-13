@@ -12,9 +12,10 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
     IERC20 public immutable token; // UPD token
     IBrightID public brightId; // BrightID verifier contract
     bytes32 public brightIdContext; // BrightID context id (bytes32)
-    uint256 public constant COOLDOWN = 7 days;
+    uint256 public constant STREAM_PERIOD = 7 days; // Stream period for withdrawals
 
-    mapping(address => uint256) public lastClaimAt; // last claim timestamp per address
+    // Streaming state per user
+    mapping(address => uint256) public lastStreamClaim; // last stream claim timestamp per address
 
     event Claimed(address indexed user, uint256 amount);
     event BrightIDUpdated(address indexed verifier, bytes32 context);
@@ -37,31 +38,50 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
         emit BrightIDUpdated(brightIdVerifier, context);
     }
 
+    // Calculate the maximum withdrawable amount for a user based on streaming
+    function streamBalance(address user) public view returns (uint256) {
+        // Calculate the maximum amount that can be streamed over 7 days
+        uint256 bal = token.balanceOf(address(this));
+        require(bal >= 2 ether, "empty");
+        uint256 maxStreamAmount = bal / 100; // 1%
+        // Use the greater of 1% or 2 UPD tokens (2 * 10^18 wei)
+        if (maxStreamAmount < 2 ether) {
+            maxStreamAmount = 2 ether;
+        }
+        // But don't exceed the available balance
+        if (maxStreamAmount > bal) {
+            maxStreamAmount = bal;
+        }
+
+        // Get the last claim time
+        uint256 lastClaim = lastStreamClaim[user];
+
+        // If last claim was more than STREAM_PERIOD ago, the user can withdraw the full amount again
+        if (block.timestamp >= lastClaim + STREAM_PERIOD) {
+            return maxStreamAmount;
+        }
+
+        // Calculate how much should be available based on time passed
+        uint256 timePassed = block.timestamp - lastClaim;
+        uint256 streamableAmount = (maxStreamAmount * timePassed) / STREAM_PERIOD;
+
+        return streamableAmount;
+    }
+
     function claim() external nonReentrant whenNotPaused {
         // Eligibility: BrightID verification
         require(brightId.isVerified(brightIdContext, msg.sender), "not BrightID verified");
 
-        // 1% of current balance (rounds down)
-        uint256 bal = token.balanceOf(address(this));
-        require(bal >= 2 ether, "empty");
-        uint256 amount = bal / 100; // 1%
-        // Use the greater of 1% or 2 UPD tokens (2 * 10^18 wei)
-        if (amount < 2 ether) {
-            amount = 2 ether;
-        }
-        // But don't exceed the available balance
-        if (amount > bal) {
-            amount = bal;
-        }
+        // Calculate available stream balance
+        uint256 available = streamBalance(msg.sender);
+        require(available > 0, "no available funds");
 
-        // Cooldown: per-address rolling 7 days
-        uint256 last = lastClaimAt[msg.sender];
-        require(block.timestamp >= last + COOLDOWN, "cooldown");
+        // Update stream state
+        lastStreamClaim[msg.sender] = block.timestamp;
 
-        lastClaimAt[msg.sender] = block.timestamp;
-        require(token.transfer(msg.sender, amount), "transfer failed");
+        require(token.transfer(msg.sender, available), "transfer failed");
 
-        emit Claimed(msg.sender, amount);
+        emit Claimed(msg.sender, available);
     }
 
     // Admin controls
