@@ -84,6 +84,22 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
         emit Claimed(msg.sender, available);
     }
 
+    function verifyAndClaim(uint _timestamp, uint8 _v, bytes32 _r, bytes32 _s) external nonReentrant whenNotPaused {
+        // Eligibility: BrightID verification
+        require(brightId.verify(msg.sender, _timestamp, _v, _r, _s), "not BrightID verified");
+
+        // Calculate available stream balance
+        uint256 available = streamBalance(msg.sender);
+        require(available > 0, "no available funds");
+
+        // Update stream state
+        lastStreamClaim[msg.sender] = block.timestamp;
+
+        require(token.transfer(msg.sender, available), "transfer failed");
+
+        emit Claimed(msg.sender, available);
+    }
+
     // Admin controls
     function pause() external onlyOwner {
         _pause();
