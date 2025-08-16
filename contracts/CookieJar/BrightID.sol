@@ -9,8 +9,8 @@ contract BrightID is Ownable {
     //-------------------Storage-----------------------------
     IERC20 public verifierToken; // address of verification Token
     bytes32 public app; //Registered BrightID app name
-    uint32 public constant REGISTRATION_PERIOD = 86400; // 24 hours in seconds
-    uint32 public constant VERIFICATION_PERIOD = 604800; // 7 days in seconds
+    uint32 public constant REGISTRATION_PERIOD = 24 hours;
+    uint32 public constant VERIFICATION_PERIOD = 7 days;
 
     //-------------------Events-----------------------------
     event AppSet(bytes32 _app);
