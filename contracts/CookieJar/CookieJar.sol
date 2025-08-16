@@ -19,7 +19,8 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
     uint256 public windowStartTime; // Start time of current tracking window
     uint256 public windowClaims; // Total amount claimed in current window
     uint256 public dynamicClaimAmount; // Current dynamic claim amount
-    uint256 public lastBalance; // Last recorded balance for comparison
+    uint256 public lastWindowEndBalance; // Balance at the end of the previous window
+    uint256 public currentWindowStartBalance; // Balance at the start of the current window
 
     // Streaming state per user
     mapping(address => uint256) public lastStreamClaim; // last stream claim timestamp per address
@@ -43,7 +44,8 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
         windowStartTime = block.timestamp;
         windowClaims = 0;
         dynamicClaimAmount = 2 ether; // Start with minimum amount (2 UPD)
-        lastBalance = 0; // Will be updated when window stats are calculated
+        lastWindowEndBalance = 0; // Will be updated when window stats are calculated
+        currentWindowStartBalance = 0; // Will be updated when window stats are calculated
     }
 
     /**
@@ -62,7 +64,8 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
             dynamicClaimAmount = minAmount;
         }
 
-        lastBalance = currentBalance;
+        lastWindowEndBalance = currentBalance;
+        currentWindowStartBalance = currentBalance;
         emit DynamicClaimAmountUpdated(dynamicClaimAmount);
     }
 
@@ -78,16 +81,17 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
     function updateWindowStats() internal {
         // Check if we need to start a new window (weekly, matching claim period)
         if (block.timestamp >= windowStartTime + STREAM_PERIOD) {
-            // Update last balance
+            // Store the end balance of the previous window
             uint256 currentBalance = token.balanceOf(address(this));
-            lastBalance = currentBalance;
+            lastWindowEndBalance = currentBalance;
+
+            // Adjust dynamic claim amount based on balance change
+            adjustClaimAmount();
 
             // Start new window
             windowStartTime = block.timestamp;
             windowClaims = 0;
-
-            // Adjust dynamic claim amount based on balance change
-            adjustClaimAmount();
+            currentWindowStartBalance = token.balanceOf(address(this));
         }
     }
 
@@ -98,25 +102,35 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
      */
     function adjustClaimAmount() internal {
         // Only adjust if we have a valid previous balance
-        if (lastBalance > 0) {
-            uint256 currentBalance = token.balanceOf(address(this));
+        if (lastWindowEndBalance > 0) {
+            uint256 currentBalance = currentWindowStartBalance;
 
             // Calculate percentage change in balance: (b2-b1) / b1
             // Handle both positive and negative changes
-            if (currentBalance > lastBalance) {
+            if (currentBalance > lastWindowEndBalance) {
                 // Balance increased
-                uint256 increase = currentBalance - lastBalance;
-                uint256 percentageIncrease = (increase * 10000) / lastBalance; // Multiply by 10000 for precision
+                uint256 increase = currentBalance - lastWindowEndBalance;
+                uint256 percentageIncrease = (increase * 10000) / lastWindowEndBalance; // Multiply by 10000 for precision
+
+                // Cap percentage increase at 90%
+                if (percentageIncrease > 9000) {
+                    percentageIncrease = 9000;
+                }
 
                 // Apply scaling factor (15% = 1500 in our scaled representation)
                 uint256 scaledIncrease = (percentageIncrease * SCALING_FACTOR) / 10000;
 
                 // Increase claim amount by the scaled percentage
                 dynamicClaimAmount = (dynamicClaimAmount * (10000 + scaledIncrease)) / 10000;
-            } else if (currentBalance < lastBalance) {
+            } else if (currentBalance < lastWindowEndBalance) {
                 // Balance decreased
-                uint256 decrease = lastBalance - currentBalance;
-                uint256 percentageDecrease = (decrease * 10000) / lastBalance; // Multiply by 10000 for precision
+                uint256 decrease = lastWindowEndBalance - currentBalance;
+                uint256 percentageDecrease = (decrease * 10000) / lastWindowEndBalance; // Multiply by 10000 for precision
+
+                // Cap percentage decrease at 90%
+                if (percentageDecrease > 9000) {
+                    percentageDecrease = 9000;
+                }
 
                 // Apply scaling factor (15% = 1500 in our scaled representation)
                 uint256 scaledDecrease = (percentageDecrease * SCALING_FACTOR) / 10000;
@@ -181,6 +195,15 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
         uint256 available = streamBalance(msg.sender);
         require(available > 0, "no available funds");
 
+        // Check if contract has enough tokens
+        uint256 contractBalance = token.balanceOf(address(this));
+        if (contractBalance < 2 ether) {
+            revert("empty");
+        }
+        if (available > contractBalance) {
+            available = contractBalance;
+        }
+
         // Track this claim
         windowClaims += available;
 
@@ -202,6 +225,15 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
         // Calculate available stream balance
         uint256 available = streamBalance(msg.sender);
         require(available > 0, "no available funds");
+
+        // Check if contract has enough tokens
+        uint256 contractBalance = token.balanceOf(address(this));
+        if (contractBalance < 2 ether) {
+            revert("empty");
+        }
+        if (available > contractBalance) {
+            available = contractBalance;
+        }
 
         // Track this claim
         windowClaims += available;
