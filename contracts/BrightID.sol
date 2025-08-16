@@ -1,46 +1,41 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "./Ownable.sol";
-import "./IERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 //-------------------Contracts-------------------------------
 contract BrightID is Ownable {
     //-------------------Storage-----------------------------
     IERC20 public verifierToken; // address of verification Token
     bytes32 public app; //Registered BrightID app name
-    uint32 public constant REGISTRATION_PERIOD = 86400;
-
-    struct Verification {
-        uint256 time;
-        bool isVerified;
-    }
+    uint32 public constant REGISTRATION_PERIOD = 86400; // 24 hours in seconds
+    uint32 public constant VERIFICATION_PERIOD = 604800; // 7 days in seconds
 
     //-------------------Events-----------------------------
-    event Verified(address indexed addr);
-    event VerifierTokenSet(IERC20 verifierToken);
     event AppSet(bytes32 _app);
-    event Sponsor(address indexed addr);
+    event VerifierTokenSet(IERC20 verifierToken);
+    event Verified(address indexed addr, uint256 timestamp);
+    // event Sponsor(address indexed addr);
 
     //-------------------Mappings---------------------------
-    mapping(address => Verification) public verifications;
-    mapping(address => address) public history;
+    mapping(address => uint256) public verifications; // verification timestamp
+    mapping(address => address) public history; // address history
 
     //-------------------Constructor-------------------------
     /**
      * @param _verifierToken verifier token
      * @param _app BrightID app used for verifying users
-     * @param _claimAddress claimPool contract
      */
-    constructor(IERC20 _verifierToken, bytes32 _app) {
-        verifierToken = _verifierToken;
-        app = _app;
+    constructor(IERC20 _verifierToken, bytes32 _app) Ownable(msg.sender) {
+        setApp(_app);
+        setVerifierToken(_verifierToken);
     }
 
     // emits a sponsor event for brightID nodes
-    function sponsor(address addr) public {
-        emit Sponsor(addr);
-    }
+    // function sponsor(address addr) public {
+    //     emit Sponsor(addr);
+    // }
 
     /**
      * @notice Set the app
@@ -53,7 +48,7 @@ contract BrightID is Ownable {
 
     /**
      * @notice Set verifier token
-     * @param _verifierToken verifier token
+     * @param _verifierToken verifier token held by trusted BrightID nodes
      */
     function setVerifierToken(IERC20 _verifierToken) public onlyOwner {
         verifierToken = _verifierToken;
@@ -69,32 +64,29 @@ contract BrightID is Ownable {
      * @param s Component of signature
      */
     function verify(address[] memory addrs, uint timestamp, uint8 v, bytes32 r, bytes32 s) public {
-        require(verifications[addrs[0]].time < timestamp, "Newer verification registered before.");
+        require(verifications[addrs[0]] < timestamp, "Newer verification registered before.");
         require(timestamp > block.timestamp - REGISTRATION_PERIOD, "Verification too old. Try linking again.");
 
         bytes32 message = keccak256(abi.encodePacked(app, addrs, timestamp));
         address signer = ecrecover(message, v, r, s);
         require(verifierToken.balanceOf(signer) > 0, "not authorized");
 
-        verifications[addrs[0]].time = timestamp;
-        verifications[addrs[0]].isVerified = true;
+        verifications[addrs[0]] = timestamp;
         for (uint i = 1; i < addrs.length; i++) {
             require(
-                verifications[addrs[i]].time < block.timestamp - REGISTRATION_PERIOD * 2,
+                verifications[addrs[i]] < block.timestamp - REGISTRATION_PERIOD * 2,
                 "Address changed too recently. Wait for next registration period."
             );
-            verifications[addrs[i]].time = timestamp;
-            verifications[addrs[i]].isVerified = false;
             history[addrs[i - 1]] = addrs[i];
         }
-        emit Verified(addrs[0]);
+        emit Verified(addrs[0], timestamp);
     }
 
     /**
-     * @notice Check an address is verified or not
-     * @param addr The context id used for verifying users
+     * @notice Check that an address has been verified and is not expired
+     * @param addr The address to check the timestamp of
      */
     function isVerified(address addr) external view returns (bool) {
-        return verifications[addr].isVerified;
+        return verifications[addr] != 0 && verifications[addr] + VERIFICATION_PERIOD >= block.timestamp;
     }
 }
