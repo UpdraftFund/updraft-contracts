@@ -23,9 +23,6 @@ contract BrightID is Ownable {
     //-------------------Mappings---------------------------
     mapping(address => uint256) public verifications; // verification timestamps
 
-    //-------------------Arrays-----------------------------
-    address[] public verifiedAddresses; // list of all verified addresses
-
     //-------------------Constructor-------------------------
     /**
      * @param _verifierToken verifier token
@@ -81,15 +78,7 @@ contract BrightID is Ownable {
         address signer = ecrecover(message, v, r, s);
         require(verifierToken.balanceOf(signer) > 0, "not authorized");
 
-        // Check if this is a new verification (not already verified)
-        bool isNewVerification = verifications[addr] == 0;
-
         verifications[addr] = timestamp;
-
-        // Add to verified addresses list if not already present
-        if (isNewVerification) {
-            verifiedAddresses.push(addr);
-        }
 
         emit Verified(addr, timestamp);
         return true;
