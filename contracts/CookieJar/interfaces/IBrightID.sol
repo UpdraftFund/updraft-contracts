@@ -5,4 +5,6 @@ interface IBrightID {
     function verify(address addr, uint timestamp, uint8 v, bytes32 r, bytes32 s) external returns (bool);
 
     function isVerified(address addr) external view returns (bool);
+
+    function getActiveVerificationCount() external view returns (uint256 count);
 }

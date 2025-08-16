@@ -43,8 +43,20 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
         // Calculate the maximum amount that can be streamed over 7 days
         uint256 bal = token.balanceOf(address(this));
         require(bal >= 2 ether, "empty");
-        uint256 maxStreamAmount = bal / 100; // 1%
-        // Use the greater of 1% or 2 UPD tokens (2 * 10^18 wei)
+
+        // Check the number of active verifications
+        uint256 activeVerifications = brightId.getActiveVerificationCount();
+
+        uint256 maxStreamAmount;
+        if (activeVerifications > 100) {
+            // If over 100 active verifications, divide by the count
+            maxStreamAmount = bal / activeVerifications;
+        } else {
+            // Otherwise use the fixed 1% calculation
+            maxStreamAmount = bal / 100; // 1%
+        }
+
+        // Use the greater of calculated amount or 2 UPD tokens (2 * 10^18 wei)
         if (maxStreamAmount < 2 ether) {
             maxStreamAmount = 2 ether;
         }
