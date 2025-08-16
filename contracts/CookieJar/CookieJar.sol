@@ -12,12 +12,12 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
     IERC20 public immutable token; // UPD token
     IBrightID public brightId; // BrightID verifier contract
     bytes32 public brightIdContext; // BrightID context id (bytes32)
-    uint256 public constant STREAM_PERIOD = 7 days; // Stream period for withdrawals
+    uint256 public constant STREAM_PERIOD = 7 days; // Stream period for withdrawals and balance tracking
+    uint256 public constant SCALING_FACTOR = 1500; // Scaling factor for adjustments (15% = 1500 in basis points)
 
     // Dynamic claim amount variables
     uint256 public windowStartTime; // Start time of current tracking window
     uint256 public windowClaims; // Total amount claimed in current window
-    int256 public previousWindowNetChange; // Net balance change in previous window
     uint256 public dynamicClaimAmount; // Current dynamic claim amount
     uint256 public lastBalance; // Last recorded balance for comparison
 
@@ -42,9 +42,28 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
         // Initialize dynamic claim amount variables
         windowStartTime = block.timestamp;
         windowClaims = 0;
-        previousWindowNetChange = 0;
-        dynamicClaimAmount = 2 ether; // Start with minimum amount
-        lastBalance = token.balanceOf(address(this));
+        dynamicClaimAmount = 2 ether; // Start with minimum amount (2 UPD)
+        lastBalance = 0; // Will be updated when window stats are calculated
+    }
+
+    /**
+     * @notice Initialize the dynamic claim amount based on current balance
+     * @dev This should be called after the contract has been funded
+     */
+    function initializeDynamicClaimAmount() external onlyOwner {
+        uint256 currentBalance = token.balanceOf(address(this));
+        uint256 maxAmount = currentBalance / 100; // 1% of balance
+        uint256 minAmount = 2 ether; // 2 UPD minimum
+
+        // Set initial dynamic claim amount to 1% of current balance, but not less than 2 UPD
+        if (maxAmount > minAmount) {
+            dynamicClaimAmount = maxAmount;
+        } else {
+            dynamicClaimAmount = minAmount;
+        }
+
+        lastBalance = currentBalance;
+        emit DynamicClaimAmountUpdated(dynamicClaimAmount);
     }
 
     function setBrightID(address brightIdVerifier, bytes32 context) external onlyOwner {
@@ -57,45 +76,67 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
      * @notice Update window statistics and adjust claim amount if needed
      */
     function updateWindowStats() internal {
-        // Check if we need to start a new window (e.g., every 24 hours)
-        if (block.timestamp >= windowStartTime + 24 hours) {
-            // Calculate net change in previous window
-            uint256 currentBalance = token.balanceOf(address(this));
-            int256 netChange = int256(currentBalance) - int256(lastBalance) - int256(windowClaims);
-            previousWindowNetChange = netChange;
-
+        // Check if we need to start a new window (weekly, matching claim period)
+        if (block.timestamp >= windowStartTime + STREAM_PERIOD) {
             // Update last balance
+            uint256 currentBalance = token.balanceOf(address(this));
             lastBalance = currentBalance;
 
             // Start new window
             windowStartTime = block.timestamp;
             windowClaims = 0;
 
-            // Adjust dynamic claim amount based on net change
+            // Adjust dynamic claim amount based on balance change
             adjustClaimAmount();
         }
     }
 
     /**
-     * @notice Adjust the dynamic claim amount based on previous window performance
+     * @notice Adjust the dynamic claim amount based on balance change
+     * @dev Uses the formula: (b2-b1) / b1) * scalingFactor where b2 is new balance and b1 is old balance
+     *      Scaling factor is between 5% and 25% (currently 15%)
      */
     function adjustClaimAmount() internal {
-        // Simple algorithm - you could make this more sophisticated
-        if (previousWindowNetChange < 0) {
-            // Net decrease - reduce claim amount
-            dynamicClaimAmount = (dynamicClaimAmount * 90) / 100; // Reduce by 10%
-        } else if (previousWindowNetChange > 0) {
-            // Net increase - could increase claim amount
-            dynamicClaimAmount = (dynamicClaimAmount * 105) / 100; // Increase by 5%
+        // Only adjust if we have a valid previous balance
+        if (lastBalance > 0) {
+            uint256 currentBalance = token.balanceOf(address(this));
+
+            // Calculate percentage change in balance: (b2-b1) / b1
+            // Handle both positive and negative changes
+            if (currentBalance > lastBalance) {
+                // Balance increased
+                uint256 increase = currentBalance - lastBalance;
+                uint256 percentageIncrease = (increase * 10000) / lastBalance; // Multiply by 10000 for precision
+
+                // Apply scaling factor (15% = 1500 in our scaled representation)
+                uint256 scaledIncrease = (percentageIncrease * SCALING_FACTOR) / 10000;
+
+                // Increase claim amount by the scaled percentage
+                dynamicClaimAmount = (dynamicClaimAmount * (10000 + scaledIncrease)) / 10000;
+            } else if (currentBalance < lastBalance) {
+                // Balance decreased
+                uint256 decrease = lastBalance - currentBalance;
+                uint256 percentageDecrease = (decrease * 10000) / lastBalance; // Multiply by 10000 for precision
+
+                // Apply scaling factor (15% = 1500 in our scaled representation)
+                uint256 scaledDecrease = (percentageDecrease * SCALING_FACTOR) / 10000;
+
+                // Decrease claim amount by the scaled percentage
+                dynamicClaimAmount = (dynamicClaimAmount * (10000 - scaledDecrease)) / 10000;
+            }
+            // If balances are equal, no adjustment needed
         }
 
         // Ensure it stays within reasonable bounds
         uint256 balance = token.balanceOf(address(this));
-        if (dynamicClaimAmount < 2 ether) {
-            dynamicClaimAmount = 2 ether;
+        uint256 maxAmount = balance / 100; // 1% of balance
+        uint256 minAmount = 2 ether; // 2 UPD minimum
+
+        if (dynamicClaimAmount < minAmount) {
+            dynamicClaimAmount = minAmount;
         }
-        if (dynamicClaimAmount > balance / 10) {
-            dynamicClaimAmount = balance / 10;
+        if (dynamicClaimAmount > maxAmount) {
+            dynamicClaimAmount = maxAmount;
         }
 
         emit DynamicClaimAmountUpdated(dynamicClaimAmount);
@@ -140,11 +181,6 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
         uint256 available = streamBalance(msg.sender);
         require(available > 0, "no available funds");
 
-        // Ensure available doesn't exceed dynamic claim amount
-        if (available > dynamicClaimAmount) {
-            available = dynamicClaimAmount;
-        }
-
         // Track this claim
         windowClaims += available;
 
@@ -166,11 +202,6 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
         // Calculate available stream balance
         uint256 available = streamBalance(msg.sender);
         require(available > 0, "no available funds");
-
-        // Ensure available doesn't exceed dynamic claim amount
-        if (available > dynamicClaimAmount) {
-            available = dynamicClaimAmount;
-        }
 
         // Track this claim
         windowClaims += available;
