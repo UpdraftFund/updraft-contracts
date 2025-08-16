@@ -11,8 +11,8 @@ contract BrightID is Ownable {
     bytes32 public app; //Registered BrightID app name
     bytes32 public verificationHash; // sha256 of the verification expression
 
-    uint32 public constant REGISTRATION_PERIOD = 24 hours;
-    uint32 public constant VERIFICATION_PERIOD = 7 days;
+    uint32 public constant REGISTRATION_PERIOD = 24 hours; // time period in which a verification signature is valid for registration
+    uint32 public constant VERIFICATION_PERIOD = 7 days; // time period in which a verification is valid after registration
 
     //-------------------Events-----------------------------
     event AppSet(bytes32 _app);
