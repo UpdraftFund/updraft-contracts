@@ -110,43 +110,44 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
      *      Scaling factor is between 5% and 25% (currently 15%)
      */
     function adjustClaimAmount(uint256 lastWindowStartBalance, uint256 lastWindowEndBalance) internal {
-        // Only adjust if we have valid previous balances
-        if (lastWindowStartBalance > 0 && lastWindowEndBalance > 0) {
+        unchecked {
+            // Only adjust if we have valid previous balances
+            if (lastWindowStartBalance > 0 && lastWindowEndBalance > 0) {
+                // Calculate percentage change in balance: (b2-b1) / b1
+                // Handle both positive and negative changes
+                if (lastWindowEndBalance > lastWindowStartBalance) {
+                    // Balance increased (end balance > start balance)
+                    uint256 increase = lastWindowEndBalance - lastWindowStartBalance;
+                    uint256 percentageIncrease = (increase * 10000) / lastWindowStartBalance; // Multiply by 10000 for precision
 
-            // Calculate percentage change in balance: (b2-b1) / b1
-            // Handle both positive and negative changes
-            if (lastWindowEndBalance > lastWindowStartBalance) {
-                // Balance increased (end balance > start balance)
-                uint256 increase = lastWindowEndBalance - lastWindowStartBalance;
-                uint256 percentageIncrease = (increase * 10000) / lastWindowStartBalance; // Multiply by 10000 for precision
+                    // Cap percentage increase at 90%
+                    if (percentageIncrease > 9000) {
+                        percentageIncrease = 9000;
+                    }
 
-                // Cap percentage increase at 90%
-                if (percentageIncrease > 9000) {
-                    percentageIncrease = 9000;
+                    // Apply scaling factor (15% = 1500 in our scaled representation)
+                    uint256 scaledIncrease = (percentageIncrease * SCALING_FACTOR) / 10000;
+
+                    // Increase claim amount by the scaled percentage
+                    dynamicClaimAmount = (dynamicClaimAmount * (10000 + scaledIncrease)) / 10000;
+                } else if (lastWindowEndBalance < lastWindowStartBalance) {
+                    // Balance decreased (end balance < start balance)
+                    uint256 decrease = lastWindowStartBalance - lastWindowEndBalance;
+                    uint256 percentageDecrease = (decrease * 10000) / lastWindowEndBalance; // Multiply by 10000 for precision
+
+                    // Cap percentage decrease at 90%
+                    if (percentageDecrease > 9000) {
+                        percentageDecrease = 9000;
+                    }
+
+                    // Apply scaling factor (15% = 1500 in our scaled representation)
+                    uint256 scaledDecrease = (percentageDecrease * SCALING_FACTOR) / 10000;
+
+                    // Decrease claim amount by the scaled percentage
+                    dynamicClaimAmount = (dynamicClaimAmount * (10000 - scaledDecrease)) / 10000;
                 }
-
-                // Apply scaling factor (15% = 1500 in our scaled representation)
-                uint256 scaledIncrease = (percentageIncrease * SCALING_FACTOR) / 10000;
-
-                // Increase claim amount by the scaled percentage
-                dynamicClaimAmount = (dynamicClaimAmount * (10000 + scaledIncrease)) / 10000;
-            } else if (lastWindowEndBalance < lastWindowStartBalance) {
-                // Balance decreased (end balance < start balance)
-                uint256 decrease = lastWindowStartBalance - lastWindowEndBalance;
-                uint256 percentageDecrease = (decrease * 10000) / lastWindowEndBalance; // Multiply by 10000 for precision
-
-                // Cap percentage decrease at 90%
-                if (percentageDecrease > 9000) {
-                    percentageDecrease = 9000;
-                }
-
-                // Apply scaling factor (15% = 1500 in our scaled representation)
-                uint256 scaledDecrease = (percentageDecrease * SCALING_FACTOR) / 10000;
-
-                // Decrease claim amount by the scaled percentage
-                dynamicClaimAmount = (dynamicClaimAmount * (10000 - scaledDecrease)) / 10000;
+                // If balances are equal, no adjustment needed
             }
-            // If balances are equal, no adjustment needed
         }
 
         // Ensure it stays within reasonable bounds
@@ -187,7 +188,12 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
         }
 
         // Calculate how much should be available based on time passed
-        uint256 timePassed = block.timestamp - lastClaim;
+        uint256 timePassed;
+        // This is safe because the if condition handles the case where lastClaim > block.timestamp
+        unchecked {
+            timePassed = block.timestamp - lastClaim;
+        }
+
         uint256 streamableAmount = (maxStreamAmount * timePassed) / STREAM_PERIOD;
 
         return streamableAmount;
@@ -244,7 +250,7 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
     function verifyAndClaim(uint _timestamp, uint8 _v, bytes32 _r, bytes32 _s) external nonReentrant whenNotPaused {
         // Eligibility: BrightID verification
         brightId.verify(msg.sender, _timestamp, _v, _r, _s);
-        
+
         this.claim();
     }
 
