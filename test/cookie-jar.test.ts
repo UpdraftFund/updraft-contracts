@@ -80,7 +80,7 @@ describe("UpdCookieJar", () => {
           "0x0000000000000000000000000000000000000000",
           brightId.address,
           context,
-        ]),
+        ])
       ).to.be.rejectedWith("bad token");
     });
   });
@@ -216,9 +216,6 @@ describe("UpdCookieJar", () => {
       // First claim should succeed
       await cookieJar.write.claim({ account: walletClient.account });
 
-      // Re-verify the user (verification might expire)
-      await mockBrightId.write.verify([userAddress]);
-
       // Advance time by half the streaming period
       await time.increase(3.5 * 24 * 60 * 60); // 3.5 days
 
@@ -231,13 +228,10 @@ describe("UpdCookieJar", () => {
       const secondClaimAmount = balanceAfterSecond - balanceBeforeSecond;
       expect(secondClaimAmount < parseUnits("110", 18)).to.be.true;
 
-      // Re-verify the user (verification might expire)
-      await mockBrightId.write.verify([userAddress]);
-
       // Advance time by the full streaming period
       await time.increase(7 * 24 * 60 * 60); // 7 days
 
-      // Re-verify the user (verification might expire)
+      // Re-verify the user (verification has expired)
       await mockBrightId.write.verify([userAddress]);
 
       // Third claim should succeed with the full amount again
@@ -366,6 +360,142 @@ describe("UpdCookieJar", () => {
     });
   });
 
+  describe("Audit verification tests", () => {
+    it("should decrease claim amount when balance decreases", async () => {
+      const { cookieJar, upd, brightId: mockBrightId } = await loadFixture(deployMockBrightIDAndCookieJar);
+
+      // Get test wallet
+      const [walletClient] = await hre.viem.getWalletClients();
+      const userAddress = walletClient.account.address;
+
+      // Verify the user
+      await mockBrightId.write.verify([userAddress]);
+
+      // Add funds to the contract
+      const initialFundAmount = parseUnits("10000", 18); // 10,000 UPD
+      await upd.write.transfer([cookieJar.address, initialFundAmount]);
+
+      // Initialize dynamic claim amount
+      await cookieJar.write.initializeDynamicClaimAmount();
+
+      // Check initial dynamic claim amount (should be 1% of 11,000 = 110 UPD)
+      let dynamicAmount = await cookieJar.read.getDynamicClaimAmount();
+      expect(dynamicAmount).to.equal(parseUnits("110", 18));
+
+      // Claim tokens to reduce balance
+      await cookieJar.write.claim({ account: walletClient.account });
+
+      // Transfer funds out to decrease balance (simulate withdrawals/drain)
+      const removeAmount = parseUnits("5000", 18); // 5,000 UPD
+      const [ownerWallet] = await hre.viem.getWalletClients();
+      // We need to use a different approach since we can't sweep UPD tokens
+      // Let's simulate a balance decrease by having another user claim
+      // First verify another user
+      const [, anotherWallet] = await hre.viem.getWalletClients();
+      await mockBrightId.write.verify([anotherWallet.account.address]);
+      // Have the other user claim tokens
+      await cookieJar.write.claim({ account: anotherWallet.account });
+
+      // Advance time by the full streaming period to trigger window update
+      await time.increase(7 * 24 * 60 * 60); // 7 days
+
+      // Store the previous dynamic amount for comparison
+      const previousDynamicAmount = dynamicAmount;
+
+      // Manually update window stats to trigger adjustment
+      await cookieJar.write.updateWindowAndAdjustClaim();
+
+      // Check that dynamic claim amount was adjusted downward
+      dynamicAmount = await cookieJar.read.getDynamicClaimAmount();
+      // Should be lower than previous amount due to balance decrease
+      expect(dynamicAmount < previousDynamicAmount).to.be.true;
+    });
+
+    it("should increase claim amount when balance increases", async () => {
+      const { cookieJar, upd, brightId: mockBrightId } = await loadFixture(deployMockBrightIDAndCookieJar);
+
+      // Get test wallet
+      const [walletClient] = await hre.viem.getWalletClients();
+      const userAddress = walletClient.account.address;
+
+      // Verify the user
+      await mockBrightId.write.verify([userAddress]);
+
+      // Add funds to the contract
+      const initialFundAmount = parseUnits("10000", 18); // 10,000 UPD
+      await upd.write.transfer([cookieJar.address, initialFundAmount]);
+
+      // Initialize dynamic claim amount
+      await cookieJar.write.initializeDynamicClaimAmount();
+
+      // Check initial dynamic claim amount (should be 1% of 11,000 = 110 UPD)
+      let dynamicAmount = await cookieJar.read.getDynamicClaimAmount();
+      expect(dynamicAmount).to.equal(parseUnits("110", 18));
+
+      // Claim tokens to reduce balance
+      await cookieJar.write.claim({ account: walletClient.account });
+
+      // Add more funds to increase balance (simulate donations)
+      const addAmount = parseUnits("5000", 18); // 5,000 UPD
+      await upd.write.transfer([cookieJar.address, addAmount]);
+
+      // Advance time by the full streaming period to trigger window update
+      await time.increase(7 * 24 * 60 * 60); // 7 days
+
+      // Store the previous dynamic amount for comparison
+      const previousDynamicAmount = dynamicAmount;
+
+      // Manually update window stats to trigger adjustment
+      await cookieJar.write.updateWindowAndAdjustClaim();
+
+      // Check that dynamic claim amount was adjusted upward
+      dynamicAmount = await cookieJar.read.getDynamicClaimAmount();
+      // Should be higher than previous amount due to balance increase
+      expect(dynamicAmount > previousDynamicAmount).to.be.true;
+    });
+
+    it("should correctly handle when balance remains the same", async () => {
+      const { cookieJar, upd, brightId: mockBrightId } = await loadFixture(deployMockBrightIDAndCookieJar);
+
+      // Get test wallet
+      const [walletClient] = await hre.viem.getWalletClients();
+      const userAddress = walletClient.account.address;
+
+      // Verify the user
+      await mockBrightId.write.verify([userAddress]);
+
+      // Add funds to the contract
+      const initialFundAmount = parseUnits("10000", 18); // 10,000 UPD
+      await upd.write.transfer([cookieJar.address, initialFundAmount]);
+
+      // Initialize dynamic claim amount
+      await cookieJar.write.initializeDynamicClaimAmount();
+
+      // Check initial dynamic claim amount (should be 1% of 11,000 = 110 UPD)
+      let dynamicAmount = await cookieJar.read.getDynamicClaimAmount();
+      expect(dynamicAmount).to.equal(parseUnits("110", 18));
+
+      // Claim tokens
+      await cookieJar.write.claim({ account: walletClient.account });
+
+      // Advance time by the full streaming period to trigger window update
+      await time.increase(7 * 24 * 60 * 60); // 7 days
+
+      // Store the previous dynamic amount for comparison
+      const previousDynamicAmount = dynamicAmount;
+
+      // Manually update window stats to trigger adjustment
+      await cookieJar.write.updateWindowAndAdjustClaim();
+
+      // Check that dynamic claim amount remains approximately the same (no significant change)
+      dynamicAmount = await cookieJar.read.getDynamicClaimAmount();
+      // When balance remains approximately the same, the claim amount should remain relatively stable
+      // Allow for a small variation due to the adjustment algorithm (should be less than 5%)
+      const difference = Math.abs(Number(dynamicAmount) - Number(previousDynamicAmount));
+      expect(difference).to.be.lessThan(Number(parseUnits("5", 18))); // Less than 5 UPD difference
+    });
+  });
+
   describe("Admin functions", () => {
     it("should allow owner to pause and unpause", async () => {
       const { cookieJar } = await loadFixture(deployMockBrightIDAndCookieJar);
@@ -423,7 +553,7 @@ describe("UpdCookieJar", () => {
       // Verify tokens were swept
       expect(await otherToken.read.balanceOf([cookieJar.address])).to.equal(0n);
       expect(await otherToken.read.balanceOf([ownerWallet.account.address])).to.equal(
-        ownerInitialBalance + sweepAmount,
+        ownerInitialBalance + sweepAmount
       );
     });
 
@@ -436,7 +566,7 @@ describe("UpdCookieJar", () => {
       // Try to sweep UPD tokens (should fail)
       const tokenAddress = await cookieJar.read.token();
       await expect(
-        cookieJar.write.sweep([tokenAddress, ownerWallet.account.address], { account: ownerWallet.account }),
+        cookieJar.write.sweep([tokenAddress, ownerWallet.account.address], { account: ownerWallet.account })
       ).to.be.rejectedWith("no sweep UPD");
     });
   });

@@ -17,10 +17,9 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
 
     // Dynamic claim amount variables
     uint256 public windowStartTime; // Start time of current tracking window
-    uint256 public windowClaims; // Total amount claimed in current window
+    uint256 public windowStartBalance; // Balance at the start of the current window
+    uint256 public windowClaims; // Total amount claimed in current window (not currently in use other than reporting)
     uint256 public dynamicClaimAmount; // Current dynamic claim amount
-    uint256 public lastWindowEndBalance; // Balance at the end of the previous window
-    uint256 public currentWindowStartBalance; // Balance at the start of the current window
 
     // Streaming state per user
     mapping(address => uint256) public lastStreamClaim; // last stream claim timestamp per address
@@ -44,8 +43,7 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
         windowStartTime = block.timestamp;
         windowClaims = 0;
         dynamicClaimAmount = 2 ether; // Start with minimum amount (2 UPD)
-        lastWindowEndBalance = 0; // Will be updated when window stats are calculated
-        currentWindowStartBalance = 0; // Will be updated when window stats are calculated
+        windowStartBalance = 0; // Will be updated when window stats are calculated
     }
 
     /**
@@ -64,8 +62,7 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
             dynamicClaimAmount = minAmount;
         }
 
-        lastWindowEndBalance = currentBalance;
-        currentWindowStartBalance = currentBalance;
+        windowStartBalance = currentBalance;
         emit DynamicClaimAmountUpdated(dynamicClaimAmount);
     }
 
@@ -76,22 +73,21 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
     }
 
     /**
-     * @notice Update window statistics and adjust claim amount if needed
+     * @notice Update window statistics at the end of the period and adjust claim amount if needed
      */
     function updateWindowStats() internal {
         // Check if we need to start a new window (weekly, matching claim period)
         if (block.timestamp >= windowStartTime + STREAM_PERIOD) {
-            // Store the end balance of the previous window
+            // Capture window and adjust dynamic claim amount based on balance change
+            // lastWindowStartBalance = windowStartBalance;
+            // lastWindowEndBalance = currentBalance;
             uint256 currentBalance = token.balanceOf(address(this));
-            lastWindowEndBalance = currentBalance;
-
-            // Adjust dynamic claim amount based on balance change
-            adjustClaimAmount();
+            adjustClaimAmount(windowStartBalance, currentBalance);
 
             // Start new window
             windowStartTime = block.timestamp;
             windowClaims = 0;
-            currentWindowStartBalance = token.balanceOf(address(this));
+            windowStartBalance = currentBalance;
         }
     }
 
@@ -100,17 +96,16 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
      * @dev Uses the formula: (b2-b1) / b1) * scalingFactor where b2 is new balance and b1 is old balance
      *      Scaling factor is between 5% and 25% (currently 15%)
      */
-    function adjustClaimAmount() internal {
-        // Only adjust if we have a valid previous balance
-        if (lastWindowEndBalance > 0) {
-            uint256 currentBalance = currentWindowStartBalance;
+    function adjustClaimAmount(uint256 lastWindowStartBalance, uint256 lastWindowEndBalance) internal {
+        // Only adjust if we have valid previous balances
+        if (lastWindowStartBalance > 0 && lastWindowEndBalance > 0) {
 
             // Calculate percentage change in balance: (b2-b1) / b1
             // Handle both positive and negative changes
-            if (currentBalance > lastWindowEndBalance) {
-                // Balance increased
-                uint256 increase = currentBalance - lastWindowEndBalance;
-                uint256 percentageIncrease = (increase * 10000) / lastWindowEndBalance; // Multiply by 10000 for precision
+            if (lastWindowEndBalance > lastWindowStartBalance) {
+                // Balance increased (end balance > start balance)
+                uint256 increase = lastWindowEndBalance - lastWindowStartBalance;
+                uint256 percentageIncrease = (increase * 10000) / lastWindowStartBalance; // Multiply by 10000 for precision
 
                 // Cap percentage increase at 90%
                 if (percentageIncrease > 9000) {
@@ -122,9 +117,9 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
 
                 // Increase claim amount by the scaled percentage
                 dynamicClaimAmount = (dynamicClaimAmount * (10000 + scaledIncrease)) / 10000;
-            } else if (currentBalance < lastWindowEndBalance) {
-                // Balance decreased
-                uint256 decrease = lastWindowEndBalance - currentBalance;
+            } else if (lastWindowEndBalance < lastWindowStartBalance) {
+                // Balance decreased (end balance < start balance)
+                uint256 decrease = lastWindowStartBalance - lastWindowEndBalance;
                 uint256 percentageDecrease = (decrease * 10000) / lastWindowEndBalance; // Multiply by 10000 for precision
 
                 // Cap percentage decrease at 90%
@@ -142,8 +137,7 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
         }
 
         // Ensure it stays within reasonable bounds
-        uint256 balance = token.balanceOf(address(this));
-        uint256 maxAmount = balance / 100; // 1% of balance
+        uint256 maxAmount = lastWindowEndBalance / 100; // 1% of balance
         uint256 minAmount = 2 ether; // 2 UPD minimum
 
         if (dynamicClaimAmount < minAmount) {
