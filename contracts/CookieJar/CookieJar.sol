@@ -9,6 +9,13 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IBrightID} from "./interfaces/IBrightID.sol";
 
 contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
+    //-------------------Custom Errors-----------------------
+    error InvalidTokenAddress(address token);
+    error NotBrightIDVerified(address user);
+    error NoAvailableFunds(uint256 availableAmount);
+    error TransferFailed(address to, uint256 amount);
+    error CannotSweepUPDToken(address erc20, address updToken);
+
     IERC20 public immutable token; // UPD token
     IBrightID public brightId; // BrightID verifier contract
     bytes32 public brightIdContext; // BrightID context id (bytes32)
@@ -33,7 +40,9 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
         address updToken,
         address brightIdVerifier
     ) Ownable(initialOwner) {
-        require(updToken != address(0), "bad token");
+        if (updToken == address(0)) {
+            revert InvalidTokenAddress(updToken);
+        }
         token = IERC20(updToken);
         brightId = IBrightID(brightIdVerifier);
 
@@ -186,14 +195,18 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
      */
     function claim() external nonReentrant whenNotPaused {
         // Eligibility: BrightID verification
-        require(brightId.isVerified(msg.sender), "not BrightID verified");
+        if (!brightId.isVerified(msg.sender)) {
+            revert NotBrightIDVerified(msg.sender);
+        }
 
         // Update window statistics
         updateWindowStats();
 
         // Calculate available stream balance
         uint256 available = streamBalance(msg.sender);
-        require(available > 0, "no available funds");
+        if (available == 0) {
+            revert NoAvailableFunds(available);
+        }
 
         // Check if contract has enough tokens
         uint256 contractBalance = token.balanceOf(address(this));
@@ -210,7 +223,10 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
         // Update stream state
         lastStreamClaim[msg.sender] = block.timestamp;
 
-        require(token.transfer(msg.sender, available), "transfer failed");
+        bool success = token.transfer(msg.sender, available);
+        if (!success) {
+            revert TransferFailed(msg.sender, available);
+        }
 
         emit Claimed(msg.sender, available);
     }
@@ -244,7 +260,9 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
      * @param to The address to send the rescued tokens to
      */
     function sweep(address erc20, address to) external onlyOwner {
-        require(erc20 != address(token), "no sweep UPD");
+        if (erc20 == address(token)) {
+            revert CannotSweepUPDToken(erc20, address(token));
+        }
         IERC20 t = IERC20(erc20);
         t.transfer(to, t.balanceOf(address(this)));
     }

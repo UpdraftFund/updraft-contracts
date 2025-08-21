@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.27;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 //-------------------Contracts-------------------------------
 contract BrightID is Ownable {
+    //-------------------Custom Errors-----------------------
+    error NewerVerificationExists(address addr, uint256 existingTimestamp, uint256 newTimestamp);
+    error VerificationTooOld(uint256 timestamp, uint256 currentTime, uint32 registrationPeriod);
+    error NotAuthorized(address signer, uint256 balance);
+
     //-------------------Storage-----------------------------
     IERC20 public verifierToken; // address of verification Token
     bytes32 public app; //Registered BrightID app name
@@ -71,12 +76,19 @@ contract BrightID is Ownable {
      * @param s Component of signature
      */
     function verify(address addr, uint timestamp, uint8 v, bytes32 r, bytes32 s) public {
-        require(verifications[addr] < timestamp, "Newer verification registered before.");
-        require(timestamp > block.timestamp - REGISTRATION_PERIOD, "Verification too old. Try linking again.");
+        if (verifications[addr] >= timestamp) {
+            revert NewerVerificationExists(addr, verifications[addr], timestamp);
+        }
+        if (timestamp <= block.timestamp - REGISTRATION_PERIOD) {
+            revert VerificationTooOld(timestamp, block.timestamp, REGISTRATION_PERIOD);
+        }
 
         bytes32 message = keccak256(abi.encodePacked(app, addr, verificationHash, timestamp));
         address signer = ecrecover(message, v, r, s);
-        require(verifierToken.balanceOf(signer) > 0, "not authorized");
+        uint256 signerBalance = verifierToken.balanceOf(signer);
+        if (signerBalance == 0) {
+            revert NotAuthorized(signer, signerBalance);
+        }
 
         verifications[addr] = timestamp;
 
