@@ -70,7 +70,7 @@ contract BrightID is Ownable {
      * @param r Component of signature
      * @param s Component of signature
      */
-    function verify(address addr, uint timestamp, uint8 v, bytes32 r, bytes32 s) public returns (bool) {
+    function verify(address addr, uint timestamp, uint8 v, bytes32 r, bytes32 s) public {
         require(verifications[addr] < timestamp, "Newer verification registered before.");
         require(timestamp > block.timestamp - REGISTRATION_PERIOD, "Verification too old. Try linking again.");
 
@@ -81,7 +81,6 @@ contract BrightID is Ownable {
         verifications[addr] = timestamp;
 
         emit Verified(addr, timestamp);
-        return true;
     }
 
     /**

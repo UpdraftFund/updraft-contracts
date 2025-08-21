@@ -25,19 +25,17 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
     mapping(address => uint256) public lastStreamClaim; // last stream claim timestamp per address
 
     event Claimed(address indexed user, uint256 amount);
-    event BrightIDUpdated(address indexed verifier, bytes32 context);
+    event BrightIDUpdated(address indexed verifier);
     event DynamicClaimAmountUpdated(uint256 newAmount);
 
     constructor(
         address initialOwner,
         address updToken,
-        address brightIdVerifier,
-        bytes32 context
+        address brightIdVerifier
     ) Ownable(initialOwner) {
         require(updToken != address(0), "bad token");
         token = IERC20(updToken);
         brightId = IBrightID(brightIdVerifier);
-        brightIdContext = context;
 
         // Initialize dynamic claim amount variables
         windowStartTime = block.timestamp;
@@ -66,10 +64,13 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
         emit DynamicClaimAmountUpdated(dynamicClaimAmount);
     }
 
-    function setBrightID(address brightIdVerifier, bytes32 context) external onlyOwner {
+    /**
+     * @notice Set the BrightID verifier contract
+     * @param brightIdVerifier The address of the BrightID verifier contract
+     */
+    function setBrightID(address brightIdVerifier) external onlyOwner {
         brightId = IBrightID(brightIdVerifier);
-        brightIdContext = context;
-        emit BrightIDUpdated(brightIdVerifier, context);
+        emit BrightIDUpdated(brightIdVerifier);
     }
 
     /**
@@ -158,7 +159,9 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
         return dynamicClaimAmount;
     }
 
-    // Calculate the maximum withdrawable amount for a user based on streaming
+    /**
+     * @notice Calculate the maximum withdrawable amount for a user based on streaming
+     */
     function streamBalance(address user) public view returns (uint256) {
         // Use the dynamic claim amount
         uint256 maxStreamAmount = dynamicClaimAmount;
@@ -178,6 +181,9 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
         return streamableAmount;
     }
 
+    /**
+     * @notice Claim UPD tokens from the Cookie Jar
+     */
     function claim() external nonReentrant whenNotPaused {
         // Eligibility: BrightID verification
         require(brightId.isVerified(msg.sender), "not BrightID verified");
@@ -209,35 +215,18 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
         emit Claimed(msg.sender, available);
     }
 
+    /**
+     * @notice Verify the user's BrightID and make claim
+     * @param _timestamp The timestamp of the BrightID verification
+     * @param _v The recovery byte of the signature
+     * @param _r The R value of the signature
+     * @param _s The S value of the signature
+     */
     function verifyAndClaim(uint _timestamp, uint8 _v, bytes32 _r, bytes32 _s) external nonReentrant whenNotPaused {
         // Eligibility: BrightID verification
-        require(brightId.verify(msg.sender, _timestamp, _v, _r, _s), "not BrightID verified");
-
-        // Update window statistics
-        updateWindowStats();
-
-        // Calculate available stream balance
-        uint256 available = streamBalance(msg.sender);
-        require(available > 0, "no available funds");
-
-        // Check if contract has enough tokens
-        uint256 contractBalance = token.balanceOf(address(this));
-        if (contractBalance < 2 ether) {
-            revert("empty");
-        }
-        if (available > contractBalance) {
-            available = contractBalance;
-        }
-
-        // Track this claim
-        windowClaims += available;
-
-        // Update stream state
-        lastStreamClaim[msg.sender] = block.timestamp;
-
-        require(token.transfer(msg.sender, available), "transfer failed");
-
-        emit Claimed(msg.sender, available);
+        brightId.verify(msg.sender, _timestamp, _v, _r, _s);
+        
+        this.claim();
     }
 
     // Admin controls
@@ -249,7 +238,11 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
         _unpause();
     }
 
-    // Optional: rescue tokens accidentally sent to the jar (excluding UPD if you want strictness)
+    /**
+     * @notice Rescue tokens accidentally sent to the jar
+     * @param erc20 The address of the ERC20 token to rescue
+     * @param to The address to send the rescued tokens to
+     */
     function sweep(address erc20, address to) external onlyOwner {
         require(erc20 != address(token), "no sweep UPD");
         IERC20 t = IERC20(erc20);
