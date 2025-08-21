@@ -20,9 +20,18 @@ async function deploy(network: string) {
     throw new Error(`UPDToken address not found for network ${network}`);
   }
 
-  // BrightID verifier address (this would need to be replaced with the actual deployed address)
-  // For now, we'll use a placeholder address
-  const brightIdVerifier = "0x0000000000000000000000000000000000000000";
+  // Deploy BrightID verifier contract
+  const verifierToken = "0x0000000000000000000000000000000000000000"; // TODO: Replace with actual verifier token address
+
+  const brightIdContract = await hre.viem.deployContract("BrightID", [
+    verifierToken, // verifier token to be distributed to trusted nodes
+    stringToHex("updraft", { size: 32 }), // app name
+    stringToHex("updraft-verification", { size: 32 }), // TODO: update with actual verification hash
+    24 * 60 * 60, // 24 hours registration period
+    7 * 24 * 60 * 60, // 7 days verification period
+  ]);
+
+  const brightIdVerifier = brightIdContract.address;
 
   // BrightID context (this would need to be replaced with the actual context)
   // For Updraft, we might use something like "updraft" as the context
@@ -31,18 +40,20 @@ async function deploy(network: string) {
   // Get the deployer account
   const [deployer] = await hre.viem.getWalletClients();
 
-  const args = [deployer.account.address, updToken, brightIdVerifier, context];
+  const args = [deployer.account.address, updToken, brightIdVerifier, 7 * 24 * 60 * 60, 1500]; // 7 days, 15% scaling factor
 
   // @ts-expect-error: Hardhat viem plugin typing issue
   const cookieJar = await hre.viem.deployContract("UpdCookieJar", args);
 
+  console.log(`BrightID Verifier deployed to ${brightIdVerifier}`);
   console.log(`CookieJar deployed to ${(cookieJar as { address: string }).address}`);
 
   console.log("Constructor arguments:");
   console.log(`  Initial Owner: ${deployer.account.address}`);
   console.log(`  UPD Token: ${updToken}`);
   console.log(`  BrightID Verifier: ${brightIdVerifier}`);
-  console.log(`  Context: ${context}`);
+  console.log(`  Stream Period: 7 days`);
+  console.log(`  Scaling Factor: 1500 (15%)`);
 
   setTimeout(async () => {
     await hre.run("verify:verify", {

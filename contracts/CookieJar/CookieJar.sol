@@ -18,9 +18,8 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
 
     IERC20 public immutable token; // UPD token
     IBrightID public brightId; // BrightID verifier contract
-    bytes32 public brightIdContext; // BrightID context id (bytes32)
-    uint256 public constant STREAM_PERIOD = 7 days; // Stream period for withdrawals and balance tracking
-    uint256 public constant SCALING_FACTOR = 1500; // Scaling factor for adjustments (15% = 1500 in basis points)
+    uint256 public immutable STREAM_PERIOD; // Stream period for withdrawals and balance tracking
+    uint256 public immutable SCALING_FACTOR; // Scaling factor for adjustments (15% = 1500 in basis points)
 
     // Dynamic claim amount variables
     uint256 public windowStartTime; // Start time of current tracking window
@@ -38,13 +37,17 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
     constructor(
         address initialOwner,
         address updToken,
-        address brightIdVerifier
+        address brightIdVerifier,
+        uint256 _streamPeriod,
+        uint256 _scalingFactor
     ) Ownable(initialOwner) {
         if (updToken == address(0)) {
             revert InvalidTokenAddress(updToken);
         }
         token = IERC20(updToken);
         brightId = IBrightID(brightIdVerifier);
+        STREAM_PERIOD = _streamPeriod;
+        SCALING_FACTOR = _scalingFactor;
 
         // Initialize dynamic claim amount variables
         windowStartTime = block.timestamp;

@@ -23,7 +23,8 @@ const deployCookieJar = async () => {
     ownerWallet.account.address,
     upd.address,
     mockBrightId.address,
-    context,
+    7 * 24 * 60 * 60, // 7 days stream period
+    1500, // 15% scaling factor
   ]);
 
   // Approve cookie jar to spend UPD tokens
@@ -48,7 +49,8 @@ const deployMockBrightIDAndCookieJar = async () => {
     ownerWallet.account.address,
     upd.address,
     mockBrightId.address,
-    context,
+    7 * 24 * 60 * 60, // 7 days stream period
+    1500, // 15% scaling factor
   ]);
 
   // Fund the cookie jar with some UPD tokens
@@ -65,7 +67,6 @@ describe("UpdCookieJar", () => {
 
       expect((await cookieJar.read.token()).toLowerCase()).to.equal(upd.address.toLowerCase());
       expect((await cookieJar.read.brightId()).toLowerCase()).to.equal(mockBrightId.address.toLowerCase());
-      expect(await cookieJar.read.brightIdContext()).to.equal(context);
     });
 
     it("should fail deployment with zero address for token", async () => {
@@ -79,9 +80,10 @@ describe("UpdCookieJar", () => {
           ownerWallet.account.address,
           "0x0000000000000000000000000000000000000000",
           brightId.address,
-          context,
+          7 * 24 * 60 * 60, // 7 days stream period
+          1500, // 15% scaling factor
         ])
-      ).to.be.rejectedWith("bad token");
+      ).to.be.rejectedWith("InvalidTokenAddress");
     });
   });
 
@@ -341,7 +343,8 @@ describe("UpdCookieJar", () => {
         ownerWallet.account.address,
         updEmpty.address,
         mockBrightIdEmpty.address,
-        contextEmpty,
+        7 * 24 * 60 * 60, // 7 days stream period
+        1500, // 15% scaling factor
       ]);
 
       // Fund this new contract with a small amount (less than 2 UPD)
@@ -521,11 +524,10 @@ describe("UpdCookieJar", () => {
       const newContext = stringToHex("updraft-new", { size: 32 });
 
       // Update BrightID verifier
-      await cookieJar.write.setBrightID([newBrightId.address, newContext]);
+      await cookieJar.write.setBrightID([newBrightId.address]);
 
       // Verify the update
       expect((await cookieJar.read.brightId()).toLowerCase()).to.equal(newBrightId.address.toLowerCase());
-      expect(await cookieJar.read.brightIdContext()).to.equal(newContext);
     });
 
     it("should allow owner to sweep non-UPD tokens", async () => {
@@ -567,7 +569,7 @@ describe("UpdCookieJar", () => {
       const tokenAddress = await cookieJar.read.token();
       await expect(
         cookieJar.write.sweep([tokenAddress, ownerWallet.account.address], { account: ownerWallet.account })
-      ).to.be.rejectedWith("no sweep UPD");
+      ).to.be.rejectedWith("CannotSweepUPDToken");
     });
   });
 });

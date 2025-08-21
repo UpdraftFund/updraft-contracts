@@ -16,8 +16,8 @@ contract BrightID is Ownable {
     bytes32 public app; //Registered BrightID app name
     bytes32 public verificationHash; // sha256 of the verification expression
 
-    uint32 public constant REGISTRATION_PERIOD = 24 hours; // time period in which a verification signature is valid for registration
-    uint32 public constant VERIFICATION_PERIOD = 7 days; // time period in which a verification is valid after registration
+    uint32 public immutable REGISTRATION_PERIOD; // time period in which a verification signature is valid for registration
+    uint32 public immutable VERIFICATION_PERIOD; // time period in which a verification is valid after registration
 
     //-------------------Events-----------------------------
     event AppSet(bytes32 _app);
@@ -33,11 +33,21 @@ contract BrightID is Ownable {
      * @param _verifierToken verifier token
      * @param _app BrightID app used for verifying users
      * @param _verificationHash sha256 of the verification expression
+     * @param _registrationPeriod time period in which a verification signature is valid for registration
+     * @param _verificationPeriod time period in which a verification is valid after registration
      */
-    constructor(IERC20 _verifierToken, bytes32 _app, bytes32 _verificationHash) Ownable(msg.sender) {
+    constructor(
+        IERC20 _verifierToken,
+        bytes32 _app,
+        bytes32 _verificationHash,
+        uint32 _registrationPeriod,
+        uint32 _verificationPeriod
+    ) Ownable(msg.sender) {
         setApp(_app);
         setVerifierToken(_verifierToken);
         setVerificationHash(_verificationHash);
+        REGISTRATION_PERIOD = _registrationPeriod;
+        VERIFICATION_PERIOD = _verificationPeriod;
     }
 
     /**
