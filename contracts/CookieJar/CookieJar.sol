@@ -118,7 +118,9 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
                 if (lastWindowEndBalance > lastWindowStartBalance) {
                     // Balance increased (end balance > start balance)
                     uint256 increase = lastWindowEndBalance - lastWindowStartBalance;
-                    uint256 percentageIncrease = (increase * 10000) / lastWindowStartBalance; // Multiply by 10000 for precision
+                    uint256 percentageIncrease = lastWindowStartBalance > 0
+                        ? (increase * 10000) / lastWindowStartBalance
+                        : 0; // Multiply by 10000 for precision
 
                     // Cap percentage increase at 90%
                     if (percentageIncrease > 9000) {
@@ -133,7 +135,9 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
                 } else if (lastWindowEndBalance < lastWindowStartBalance) {
                     // Balance decreased (end balance < start balance)
                     uint256 decrease = lastWindowStartBalance - lastWindowEndBalance;
-                    uint256 percentageDecrease = (decrease * 10000) / lastWindowEndBalance; // Multiply by 10000 for precision
+                    uint256 percentageDecrease = lastWindowEndBalance > 0
+                        ? (decrease * 10000) / lastWindowEndBalance
+                        : 0; // Multiply by 10000 for precision
 
                     // Cap percentage decrease at 90%
                     if (percentageDecrease > 9000) {
@@ -151,7 +155,7 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
         }
 
         // Ensure it stays within reasonable bounds
-        uint256 maxAmount = lastWindowEndBalance / 100; // 1% of balance
+        uint256 maxAmount = lastWindowEndBalance > 0 ? lastWindowEndBalance / 100 : 0; // 1% of balance
         uint256 minAmount = 2 ether; // 2 UPD minimum
 
         if (dynamicClaimAmount < minAmount) {
@@ -195,6 +199,12 @@ contract UpdCookieJar is ReentrancyGuard, Pausable, Ownable2Step {
         }
 
         uint256 streamableAmount = (maxStreamAmount * timePassed) / STREAM_PERIOD;
+
+        // Handle precision loss - ensure minimum claimable amount if time has passed
+        if (streamableAmount == 0 && timePassed > 0) {
+            // Minimum claim threshold to prevent precision loss (2 UPD)
+            streamableAmount = 2 ether;
+        }
 
         return streamableAmount;
     }
