@@ -18,7 +18,7 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
     uint256 public percentFee;
     uint256 public accrualRate;
     uint256 public cycleLength;
-    address public humanity;
+    address public faucet;
 
     event ProfileUpdated(address indexed owner, bytes data);
     event IdeaCreated(
@@ -46,14 +46,14 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
         uint256 percentFee_,
         uint256 cycleLength_,
         uint256 accrualRate_,
-        address humanity_
+        address faucet_
     ){
         feeToken = feeToken_;
         minFee = minFee_;
         percentFee = percentFee_;
         cycleLength = cycleLength_;
         accrualRate = accrualRate_;
-        humanity = humanity_;
+        faucet = faucet_;
     }
 
     function setFeeToken(IERC20 token) external onlyOwner {
@@ -76,18 +76,18 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
         accrualRate = rate;
     }
 
-    function setHumanity(address humanity_) external onlyOwner {
-        humanity = humanity_;
+    function setFaucet(address faucet_) external onlyOwner {
+        faucet = faucet_;
     }
 
     /// Create or update a profile. It will be associated with the caller's address.
     function updateProfile(bytes calldata profileData) external {
-        feeToken.safeTransferFrom(msg.sender, humanity, minFee);
+        feeToken.safeTransferFrom(msg.sender, faucet, minFee);
         emit ProfileUpdated(msg.sender, profileData);
     }
 
     function createIdea(uint256 contributorFee, uint256 contribution, bytes calldata ideaData) external {
-        Idea idea = new Idea(contributorFee, humanity);
+        Idea idea = new Idea(contributorFee, faucet);
         emit IdeaCreated(idea, msg.sender, contributorFee, contribution, ideaData);
 
         feeToken.safeTransferFrom(msg.sender, address(this), contribution);
@@ -118,7 +118,7 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
             contributorFee,
             solutionData
         );
-        feeToken.safeTransferFrom(msg.sender, humanity, minFee);
+        feeToken.safeTransferFrom(msg.sender, faucet, minFee);
         if (stake > 0){
             feeToken.safeTransferFrom(msg.sender, address(this), stake);
             feeToken.approve(address(solution), stake);
@@ -135,7 +135,7 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
         bytes calldata ideaData,
         bytes calldata profileData
     ) external {
-        Idea idea = new Idea(contributorFee, humanity);
+        Idea idea = new Idea(contributorFee, faucet);
         emit IdeaCreated(idea, msg.sender, contributorFee, contribution, ideaData);
         emit ProfileUpdated(msg.sender, profileData);
 
@@ -170,7 +170,7 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
             contributorFee,
             solutionData
         );
-        feeToken.safeTransferFrom(msg.sender, humanity, minFee);
+        feeToken.safeTransferFrom(msg.sender, faucet, minFee);
         if (stake > 0){
             feeToken.safeTransferFrom(msg.sender, address(this), stake);
             feeToken.approve(address(solution), stake);

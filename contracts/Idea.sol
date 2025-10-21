@@ -29,7 +29,7 @@ contract Idea {
     uint256 public immutable percentScale;
     uint256 public immutable minFee;
     uint256 public immutable percentFee;
-    address public immutable humanity;
+    address public immutable faucet;
 
     /// @notice The total number of tokens in this Choice.
     /// @dev This should equal balanceOf(address(this)),
@@ -57,7 +57,8 @@ contract Idea {
         uint256 positionIndex,
         uint256 amount,
         uint256 totalShares,
-        uint256 totalTokens
+        uint256 totalTokens,
+        bool indexed isAirdrop
     );
     event PositionTransferred(
         address indexed sender,
@@ -110,12 +111,12 @@ contract Idea {
         _;
     }
 
-    constructor(uint256 contributorFee_, address humanity_) {
+    constructor(uint256 contributorFee_, address faucet_) {
         crowdFund = ICrowdFund(msg.sender);
         startTime = block.timestamp;
 
         contributorFee = contributorFee_;
-        humanity = humanity_;
+        faucet = faucet_;
 
         cycleLength = crowdFund.cycleLength();
         accrualRate = crowdFund.accrualRate();
@@ -123,7 +124,7 @@ contract Idea {
         percentScale = crowdFund.percentScale();
         minFee = crowdFund.minFee();
         percentFee = crowdFund.percentFee();
-        contributorFees = 0; // Initialize contributor fees tracking
+        contributorFees = 0;
 
         if (contributorFee > percentScale) {
             revert ContributorFeeOverOneHundredPercent();
@@ -159,7 +160,7 @@ contract Idea {
 
             tokens += amount;
 
-            // updateCyclesWithFee() will always add a cycle if none exists
+        // updateCyclesWithFee() will always add a cycle if none exists
             lastStoredCycleIndex = cycles.length - 1;
 
             if (lastStoredCycleIndex > 0) {
@@ -178,9 +179,9 @@ contract Idea {
         }
 
         token.safeTransferFrom(addr, address(this), originalAmount);
-        token.safeTransfer(humanity, fee);
+        token.safeTransfer(faucet, fee);
 
-        emit Contributed(addr, positionIndex, originalAmount, totalShares(), tokens);
+        emit Contributed(addr, positionIndex, originalAmount, totalShares(), tokens, false);
     }
 
     /// @notice Donates to past contributors with no expectation of return
@@ -204,16 +205,16 @@ contract Idea {
             fee = max(minFee, amount * percentFee / percentScale);
             amount -= fee;
 
-            // The entire amount (minus anti-spam fee) is counted as contributor fee
+        // The entire amount (minus anti-spam fee) is counted as contributor fee
             uint256 _contributorFee = amount;
 
-            // Update cycles with the amount as a contribution and the entire amount as contributor fee
+        // Update cycles with the amount as a contribution and the entire amount as contributor fee
             updateCyclesWithFee(_contributorFee);
 
             tokens += amount;
             contributorFees += _contributorFee;
 
-            // updateCyclesAddingAmount() will always add a cycle if none exists
+        // updateCyclesAddingAmount() will always add a cycle if none exists
             lastStoredCycleIndex = cycles.length - 1;
         }
 
@@ -226,9 +227,9 @@ contract Idea {
         }
 
         token.safeTransferFrom(addr, address(this), originalAmount);
-        token.safeTransfer(humanity, fee);
+        token.safeTransfer(faucet, fee);
 
-        emit Contributed(addr, positionIndex, originalAmount, totalShares(), tokens);
+        emit Contributed(addr, positionIndex, originalAmount, totalShares(), tokens, true);
     }
 
     /// Withdraw the only position
@@ -401,16 +402,16 @@ contract Idea {
         uint256 lastStoredCycleIndex;
 
         unchecked {
-            // updateCyclesWithFee() will always add a cycle if none exists
+        // updateCyclesWithFee() will always add a cycle if none exists
             lastStoredCycleIndex = cycles.length - 1;
             loopIndex = position.startCycleIndex + 1; // can't realistically overflow
         }
 
-        for (uint256 i = loopIndex; i <= lastStoredCycleIndex; ) {
+        for (uint256 i = loopIndex; i <= lastStoredCycleIndex;) {
             Cycle storage cycle = cycles[i];
 
             unchecked {
-                // Calculate shares for this cycle based on the original tokens
+            // Calculate shares for this cycle based on the original tokens
                 shares = accrualRate * (cycle.number - firstCycleNumber) * originalTokens / percentScale;
 
                 positionTokens += (cycle.fees * shares) / cycle.shares;
@@ -448,6 +449,7 @@ contract Idea {
                 if (lastStoredCycleIndex != 0) {
                     unchecked {
                         lastStoredCycle.fees += _contributorFee;
+                        lastStoredCycle.hasContributions = lastStoredCycle.fees > 0;
                     }
                 }
             } else {

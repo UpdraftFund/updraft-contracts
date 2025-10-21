@@ -21,22 +21,22 @@ const deployUpdraft = async () => {
   const percentFee = 10000; // 1%
   const accrualRate = 100000; // 10% - higher for easier testing
   const cycleLength = 3600; // 1 hour in seconds
-  const humanity = '0xdC0046B52e2E38AEe2271B6171ebb65cCD337518';
-  const args = [feeToken, antiSpamFee, percentFee, cycleLength, accrualRate, humanity];
+  const faucet = '0xdC0046B52e2E38AEe2271B6171ebb65cCD337518';
+  const args = [feeToken, antiSpamFee, percentFee, cycleLength, accrualRate, faucet];
   const updraft = await hre.viem.deployContract('Updraft', args);
-  return { updraft, upd, humanity };
+  return { updraft, upd, faucet };
 };
 
 const deployUpdraftAndApproveToSpendUPD = async () => {
-  const { updraft, upd, humanity } = await loadFixture(deployUpdraft);
+  const { updraft, upd, faucet } = await loadFixture(deployUpdraft);
   await upd.write.approve([updraft.address, parseUnits('100000000000', 18)]);
-  return { updraft, upd, humanity };
+  return { updraft, upd, faucet };
 };
 
 describe('Idea Contract Fee Distribution Test', () => {
   it('should distribute all contributor fees correctly and leave no tokens in the contract', async () => {
     // Deploy a fresh contract for this test
-    const { updraft, upd, humanity } = await loadFixture(deployUpdraftAndApproveToSpendUPD);
+    const { updraft, upd, faucet } = await loadFixture(deployUpdraftAndApproveToSpendUPD);
     const publicClient = await hre.viem.getPublicClient();
 
     // Create a new idea with 10% contributor fee
