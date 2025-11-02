@@ -155,13 +155,6 @@ contract Solution is Ownable {
         }
     }
 
-    /// Check the number of tokens and shares for an address with only one position.
-    function checkPosition(
-        address addr
-    ) external view singlePosition(addr) returns (uint256 feesEarned, uint256 shares) {
-        return checkPosition(addr, 0);
-    }
-
     /// @notice Allows users to contribute to this Solution
     /// @dev Creates a new position for the contributor
     /// @param amount The amount to contribute
@@ -339,16 +332,6 @@ contract Solution is Ownable {
         emit SolutionUpdated(solutionData);
     }
 
-    function _extendGoal(uint256 goal, uint256 deadline_) internal {
-        if (goal <= fundingGoal) revert GoalMustIncrease(fundingGoal, goal);
-        if (deadline_ <= block.timestamp) revert MustSetDeadlineInFuture(deadline_);
-        withdrawFunds();
-        goalExtendedTime = block.timestamp;
-        fundingGoal = goal;
-        deadline = deadline_;
-        emit GoalExtended(goal, deadline);
-    }
-
     /// Collect fees for the only position
     function collectFees() external singlePosition(msg.sender) {
         collectFees(0);
@@ -389,49 +372,11 @@ contract Solution is Ownable {
         split(positionIndex, numSplits - 1, position.contribution / numSplits);
     }
 
-    /// @return The number of shares all contributors hold in this choice.
-    /// The total shares can be compared between two choices to see which has more support.
-    function totalShares() public view returns (uint256) {
-        if (cycles.length == 0) {
-            return 0;
-        }
-        return cycles[cycles.length - 1].shares + pendingShares(currentCycleNumber(), tokensContributed);
-    }
-
-    function totalTokens() public view returns (uint256) {
-        unchecked {
-            return tokensContributed - tokensWithdrawn;
-        }
-    }
-
-    function currentCycleNumber() public view returns (uint256) {
-        unchecked {
-            return cycleNumberAtTime(block.timestamp);
-        }
-    }
-
-    function cycleNumberAtTime(uint256 timestamp) public view returns (uint256) {
-        unchecked {
-            return (timestamp - startTime) / cycleLength;
-        }
-    }
-
-    /// Did this Solution fail to reach its goal before the deadline?
-    function goalFailed() public view returns (bool) {
-        return block.timestamp > deadline && tokensContributed < fundingGoal;
-    }
-
-    function numPositions(address addr) public view returns (uint256) {
-        return positionsByAddress[addr].length;
-    }
-
-    /// @param positionIndex The positionIndex returned by the contribute() function.
+    /// Check the number of tokens and shares for an address with only one position.
     function checkPosition(
-        address addr,
-        uint256 positionIndex
-    ) public view positionExists(addr, positionIndex) returns (uint256 feesEarned, uint256 shares) {
-        (feesEarned, shares) = positionToLastStoredCycle(addr, positionIndex);
-        shares += pendingShares(currentCycleNumber(), positionsByAddress[addr][positionIndex].contribution);
+        address addr
+    ) external view singlePosition(addr) returns (uint256 feesEarned, uint256 shares) {
+        return checkPosition(addr, 0);
     }
 
     /// @notice Allows contributors to collect their earned fees
@@ -456,19 +401,12 @@ contract Solution is Ownable {
     function withdrawFunds() public onlyOwner goalReached {
         uint256 availableTokens = totalTokens();
         if (availableTokens > 0) {
-            withdrawFunds(msg.sender, availableTokens);
+            _withdrawFunds(msg.sender, availableTokens);
         }
     }
 
     function withdrawFunds(address to, uint256 amount) public onlyOwner goalReached {
-        if (amount <= totalTokens()) {
-            // Keep overflow checks for unknown token operations
-            tokensWithdrawn += amount;
-            fundingToken.safeTransfer(to, amount);
-            emit FundsWithdrawn(to, amount, totalTokens());
-        } else {
-            revert WithdrawMoreThanAvailable(amount, totalTokens());
-        }
+        _withdrawFunds(to, amount);
     }
 
     /// Get a refund and stake award after the goal fails.
@@ -576,40 +514,69 @@ contract Solution is Ownable {
         }
     }
 
-    /// @notice Calculates the fees earned and shares for a position up to the last stored cycle
-    /// @dev Used by collectFees and checkPosition to determine earned fees
-    /// @param addr The address of the position owner
-    /// @param positionIndex The index of the position
-    /// @return feesEarned The amount of fees earned by the position
-    /// @return shares The number of shares held by the position
-    function positionToLastStoredCycle(
+    /// @return The number of shares all contributors hold in this choice.
+    /// The total shares can be compared between two choices to see which has more support.
+    function totalShares() public view returns (uint256) {
+        if (cycles.length == 0) {
+            return 0;
+        }
+        return cycles[cycles.length - 1].shares + pendingShares(currentCycleNumber(), tokensContributed);
+    }
+
+    function totalTokens() public view returns (uint256) {
+        unchecked {
+            return tokensContributed - tokensWithdrawn;
+        }
+    }
+
+    function currentCycleNumber() public view returns (uint256) {
+        unchecked {
+            return cycleNumberAtTime(block.timestamp);
+        }
+    }
+
+    function cycleNumberAtTime(uint256 timestamp) public view returns (uint256) {
+        unchecked {
+            return (timestamp - startTime) / cycleLength;
+        }
+    }
+
+    /// Did this Solution fail to reach its goal before the deadline?
+    function goalFailed() public view returns (bool) {
+        return block.timestamp > deadline && tokensContributed < fundingGoal;
+    }
+
+    function numPositions(address addr) public view returns (uint256) {
+        return positionsByAddress[addr].length;
+    }
+
+    /// @param positionIndex The positionIndex returned by the contribute() function.
+    function checkPosition(
         address addr,
         uint256 positionIndex
-    ) internal view returns (uint256 feesEarned, uint256 shares) {
-        Position storage position = positionsByAddress[addr][positionIndex];
+    ) public view positionExists(addr, positionIndex) returns (uint256 feesEarned, uint256 shares) {
+        (feesEarned, shares) = positionToLastStoredCycle(addr, positionIndex);
+        shares += pendingShares(currentCycleNumber(), positionsByAddress[addr][positionIndex].contribution);
+    }
 
-        uint256 contribution = position.contribution;
+    function _extendGoal(uint256 goal, uint256 deadline_) internal {
+        if (goal <= fundingGoal) revert GoalMustIncrease(fundingGoal, goal);
+        if (deadline_ <= block.timestamp) revert MustSetDeadlineInFuture(deadline_);
+        withdrawFunds();
+        goalExtendedTime = block.timestamp;
+        fundingGoal = goal;
+        deadline = deadline_;
+        emit GoalExtended(goal, deadline);
+    }
 
-        uint256 loopIndex;
-        uint256 firstCycleNumber = cycles[position.startCycleIndex].number;
-        uint256 lastStoredCycleIndex;
-
-        unchecked {
-        // updateCyclesWithFee() will always add a cycle if none exists
-            lastStoredCycleIndex = cycles.length - 1;
-            loopIndex = position.lastCollectedCycleIndex + 1; // can't realistically overflow
-        }
-
-        for (uint256 i = loopIndex; i <= lastStoredCycleIndex;) {
-            Cycle storage cycle = cycles[i];
-
+    function _withdrawFunds(address to, uint256 amount) internal {
+        if (amount <= totalTokens()) {
             // Keep overflow checks for unknown token operations
-            shares = accrualRate * (cycle.number - firstCycleNumber) * contribution / percentScale;
-            feesEarned += (cycle.fees * shares) / cycle.shares;
-
-            unchecked {
-                ++i;
-            }
+            tokensWithdrawn += amount;
+            fundingToken.safeTransfer(to, amount);
+            emit FundsWithdrawn(to, amount, totalTokens());
+        } else {
+            revert WithdrawMoreThanAvailable(amount, totalTokens());
         }
     }
 
@@ -667,5 +634,42 @@ contract Solution is Ownable {
                 }
             } // end else (Add a new cycle...)
         } // end else (Not the first contribution.)
+    }
+
+    /// @notice Calculates the fees earned and shares for a position up to the last stored cycle
+    /// @dev Used by collectFees and checkPosition to determine earned fees
+    /// @param addr The address of the position owner
+    /// @param positionIndex The index of the position
+    /// @return feesEarned The amount of fees earned by the position
+    /// @return shares The number of shares held by the position
+    function positionToLastStoredCycle(
+        address addr,
+        uint256 positionIndex
+    ) internal view returns (uint256 feesEarned, uint256 shares) {
+        Position storage position = positionsByAddress[addr][positionIndex];
+
+        uint256 contribution = position.contribution;
+
+        uint256 loopIndex;
+        uint256 firstCycleNumber = cycles[position.startCycleIndex].number;
+        uint256 lastStoredCycleIndex;
+
+        unchecked {
+        // updateCyclesWithFee() will always add a cycle if none exists
+            lastStoredCycleIndex = cycles.length - 1;
+            loopIndex = position.lastCollectedCycleIndex + 1; // can't realistically overflow
+        }
+
+        for (uint256 i = loopIndex; i <= lastStoredCycleIndex;) {
+            Cycle storage cycle = cycles[i];
+
+            // Keep overflow checks for unknown token operations
+            shares = accrualRate * (cycle.number - firstCycleNumber) * contribution / percentScale;
+            feesEarned += (cycle.fees * shares) / cycle.shares;
+
+            unchecked {
+                ++i;
+            }
+        }
     }
 }
