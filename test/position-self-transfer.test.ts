@@ -116,14 +116,13 @@ describe('Position Self-Transfer Tests', () => {
       // Verify position count increased by 1
       expect(finalPositionCount).to.equal(initialPositionCount + 1n);
 
-      // Verify original position no longer exists
+      // Verify original position is deleted (tokens set to 0), so checkPosition should throw PositionDoesNotExist
       try {
         await contract.read.checkPosition([userAddress, 0]);
-        // If we get here, the test should fail because the position should be deleted
-        expect.fail('Original position still exists but should have been deleted');
-      } catch (error) {
-        // This is expected - position should be deleted
-        expect(error.message).to.include('PositionDoesNotExist');
+        expect.fail('Expected PositionDoesNotExist error');
+      } catch (error: any) {
+        // Check for the PositionDoesNotExist error selector (0xf7b3b391)
+        expect(error.message).to.include('0xf7b3b391');
       }
 
       // Verify new position has the same tokens as the original

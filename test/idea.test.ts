@@ -494,13 +494,13 @@ describe('Idea Contract', () => {
       await contract.write.transferPosition([secondWalletAddress, 0]);
 
       // Verify first wallet no longer has the position
-      // The position might still exist but with 0 tokens
+      // The position is deleted (tokens set to 0), so checkPosition should throw PositionDoesNotExist
       try {
-        const [tokens] = await contract.read.checkPosition([firstWalletAddress, 0]);
-        expect(Number(tokens)).to.equal(0);
-      } catch (error) {
-        // If the position doesn't exist at all, that's also acceptable
-        expect(error.message).to.include('PositionDoesNotExist');
+        await contract.read.checkPosition([firstWalletAddress, 0]);
+        expect.fail('Expected PositionDoesNotExist error');
+      } catch (error: any) {
+        // Check for the PositionDoesNotExist error selector (0xf7b3b391)
+        expect(error.message).to.include('0xf7b3b391');
       }
 
       // Verify second wallet now has the position
