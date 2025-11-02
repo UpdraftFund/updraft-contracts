@@ -372,6 +372,10 @@ contract Solution is Ownable {
         split(positionIndex, numSplits - 1, position.contribution / numSplits);
     }
 
+    function withdrawFunds(address to, uint256 amount) external onlyOwner goalReached {
+        _withdrawFunds(to, amount);
+    }
+
     /// Check the number of tokens and shares for an address with only one position.
     function checkPosition(
         address addr
@@ -395,18 +399,6 @@ contract Solution is Ownable {
 
         fundingToken.safeTransfer(addr, feesEarned);
         emit FeesCollected(addr, positionIndex, feesEarned);
-    }
-
-    /// Withdraw all funds to owner.
-    function withdrawFunds() public onlyOwner goalReached {
-        uint256 availableTokens = totalTokens();
-        if (availableTokens > 0) {
-            _withdrawFunds(msg.sender, availableTokens);
-        }
-    }
-
-    function withdrawFunds(address to, uint256 amount) public onlyOwner goalReached {
-        _withdrawFunds(to, amount);
     }
 
     /// Get a refund and stake award after the goal fails.
@@ -499,6 +491,14 @@ contract Solution is Ownable {
         }
 
         emit Split(addr, positionIndex, numSplits, firstNewPositionIndex, amount, position.contribution);
+    }
+
+    /// Withdraw all funds to owner.
+    function withdrawFunds() public onlyOwner goalReached {
+        uint256 availableTokens = totalTokens();
+        if (availableTokens > 0) {
+            _withdrawFunds(msg.sender, availableTokens);
+        }
     }
 
     /// @param _tokens The token amount used to compute shares--either from the choice, or an individual position.
