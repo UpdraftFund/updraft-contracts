@@ -86,7 +86,7 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
         emit ProfileUpdated(msg.sender, profileData);
     }
 
-    function createIdea(uint256 contributorFee, uint256 contribution, bytes calldata ideaData) external {
+    function createIdea(uint256 contributorFee, uint256 contribution, bytes calldata ideaData) public {
         Idea idea = new Idea(contributorFee, faucet);
         emit IdeaCreated(idea, msg.sender, contributorFee, contribution, ideaData);
 
@@ -105,7 +105,7 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
         uint256 deadline,
         uint256 contributorFee,
         bytes calldata solutionData
-    ) external {
+    ) public {
         Solution solution = new Solution(msg.sender, fundingToken, feeToken, goal, deadline, contributorFee);
         emit SolutionCreated(
             solution,
@@ -128,26 +128,18 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
     }
 
     /// Create or update a profile while creating an idea to avoid paying the updraft anti-spam fee twice.
-    /// @dev This code isn't DRY, but we want to use calldata to save gas.
     function createIdeaWithProfile(
         uint256 contributorFee,
         uint256 contribution,
         bytes calldata ideaData,
         bytes calldata profileData
     ) external {
-        Idea idea = new Idea(contributorFee, faucet);
-        emit IdeaCreated(idea, msg.sender, contributorFee, contribution, ideaData);
+        createIdea(contributorFee, contribution, ideaData);
         emit ProfileUpdated(msg.sender, profileData);
-
-        feeToken.safeTransferFrom(msg.sender, address(this), contribution);
-        feeToken.approve(address(idea), contribution);
-        idea.contribute(contribution);
-        idea.transferPosition(msg.sender);
     }
 
     /// Create or update a profile while creating a solution to avoid paying `minFee` twice.
     /// @param idea The address of the Idea contract to which this solution refers. It can be on another chain.
-    /// @dev This code isn't DRY, but we want to use calldata to save gas.
     function createSolutionWithProfile(
         address idea,
         IERC20 fundingToken,
@@ -158,25 +150,7 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
         bytes calldata solutionData,
         bytes calldata profileData
     ) external {
-        Solution solution = new Solution(msg.sender, fundingToken, feeToken, goal, deadline, contributorFee);
-        emit SolutionCreated(
-            solution,
-            msg.sender,
-            idea,
-            fundingToken,
-            stake,
-            goal,
-            deadline,
-            contributorFee,
-            solutionData
-        );
-        feeToken.safeTransferFrom(msg.sender, faucet, minFee);
-        if (stake > 0){
-            feeToken.safeTransferFrom(msg.sender, address(this), stake);
-            feeToken.approve(address(solution), stake);
-            solution.addStake(stake);
-            solution.transferStake(msg.sender);
-        }
+        createSolution(idea, fundingToken, stake, goal, deadline, contributorFee, solutionData);
         emit ProfileUpdated(msg.sender, profileData);
     }
 }
