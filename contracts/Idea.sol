@@ -131,13 +131,6 @@ contract Idea {
         }
     }
 
-    /// Check the number of tokens and shares for an address with only one position.
-    function checkPosition(
-        address addr
-    ) external view singlePosition(addr) returns (uint256 positionTokens, uint256 shares) {
-        return checkPosition(addr, 0);
-    }
-
     /// @return positionIndex will be reused as input to withdraw(), checkPosition(), and other functions
     function contribute(uint256 amount) external returns (uint256 positionIndex) {
         if (amount < minFee) revert ContributionLessThanMinFee(amount, minFee);
@@ -263,29 +256,11 @@ contract Idea {
         split(positionIndex, numSplits - 1, position.tokens / numSplits);
     }
 
-    /// @return The number of shares all contributors hold in this choice.
-    /// The total shares can be compared between two choices to see which has more support.
-    function totalShares() public view returns (uint256) {
-        return cycles[cycles.length - 1].shares + pendingShares(currentCycleNumber(), tokens - contributorFees);
-    }
-
-    function currentCycleNumber() public view returns (uint256) {
-        unchecked {
-            return (block.timestamp - startTime) / cycleLength;
-        }
-    }
-
-    function numPositions(address addr) public view returns (uint256) {
-        return positionsByAddress[addr].length;
-    }
-
-    /// @param positionIndex The positionIndex returned by the contribute() function.
+    /// Check the number of tokens and shares for an address with only one position.
     function checkPosition(
-        address addr,
-        uint256 positionIndex
-    ) public view positionExists(addr, positionIndex) returns (uint256 positionTokens, uint256 shares) {
-        (positionTokens, shares) = positionToLastStoredCycle(addr, positionIndex);
-        shares += pendingShares(currentCycleNumber(), positionsByAddress[addr][positionIndex].tokens);
+        address addr
+    ) external view singlePosition(addr) returns (uint256 positionTokens, uint256 shares) {
+        return checkPosition(addr, 0);
     }
 
     /// @param positionIndex The positionIndex returned by the contribute() function.
@@ -388,37 +363,29 @@ contract Idea {
         }
     }
 
-    function positionToLastStoredCycle(
+    /// @return The number of shares all contributors hold in this choice.
+    /// The total shares can be compared between two choices to see which has more support.
+    function totalShares() public view returns (uint256) {
+        return cycles[cycles.length - 1].shares + pendingShares(currentCycleNumber(), tokens - contributorFees);
+    }
+
+    function currentCycleNumber() public view returns (uint256) {
+        unchecked {
+            return (block.timestamp - startTime) / cycleLength;
+        }
+    }
+
+    function numPositions(address addr) public view returns (uint256) {
+        return positionsByAddress[addr].length;
+    }
+
+    /// @param positionIndex The positionIndex returned by the contribute() function.
+    function checkPosition(
         address addr,
         uint256 positionIndex
-    ) internal view returns (uint256 positionTokens, uint256 shares) {
-        Position storage position = positionsByAddress[addr][positionIndex];
-
-        positionTokens = position.tokens;
-        uint256 originalTokens = positionTokens;
-
-        uint256 loopIndex;
-        uint256 firstCycleNumber = cycles[position.startCycleIndex].number;
-        uint256 lastStoredCycleIndex;
-
-        unchecked {
-        // updateCyclesWithFee() will always add a cycle if none exists
-            lastStoredCycleIndex = cycles.length - 1;
-            loopIndex = position.startCycleIndex + 1; // can't realistically overflow
-        }
-
-        for (uint256 i = loopIndex; i <= lastStoredCycleIndex;) {
-            Cycle storage cycle = cycles[i];
-
-            unchecked {
-            // Calculate shares for this cycle based on the original tokens
-                shares = accrualRate * (cycle.number - firstCycleNumber) * originalTokens / percentScale;
-
-                positionTokens += (cycle.fees * shares) / cycle.shares;
-
-                ++i;
-            }
-        }
+    ) public view positionExists(addr, positionIndex) returns (uint256 positionTokens, uint256 shares) {
+        (positionTokens, shares) = positionToLastStoredCycle(addr, positionIndex);
+        shares += pendingShares(currentCycleNumber(), positionsByAddress[addr][positionIndex].tokens);
     }
 
     function updateCyclesWithFee(uint256 _contributorFee) internal {
@@ -478,6 +445,39 @@ contract Idea {
                 }
             } // end else (Add a new cycle...)
         } // end else (Not the first contribution.)
+    }
+
+    function positionToLastStoredCycle(
+        address addr,
+        uint256 positionIndex
+    ) internal view returns (uint256 positionTokens, uint256 shares) {
+        Position storage position = positionsByAddress[addr][positionIndex];
+
+        positionTokens = position.tokens;
+        uint256 originalTokens = positionTokens;
+
+        uint256 loopIndex;
+        uint256 firstCycleNumber = cycles[position.startCycleIndex].number;
+        uint256 lastStoredCycleIndex;
+
+        unchecked {
+        // updateCyclesWithFee() will always add a cycle if none exists
+            lastStoredCycleIndex = cycles.length - 1;
+            loopIndex = position.startCycleIndex + 1; // can't realistically overflow
+        }
+
+        for (uint256 i = loopIndex; i <= lastStoredCycleIndex;) {
+            Cycle storage cycle = cycles[i];
+
+            unchecked {
+            // Calculate shares for this cycle based on the original tokens
+                shares = accrualRate * (cycle.number - firstCycleNumber) * originalTokens / percentScale;
+
+                positionTokens += (cycle.fees * shares) / cycle.shares;
+
+                ++i;
+            }
+        }
     }
 
     function max(uint256 a, uint256 b) internal pure returns (uint256) {

@@ -86,6 +86,33 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
         emit ProfileUpdated(msg.sender, profileData);
     }
 
+    /// Create or update a profile while creating an idea to avoid paying the updraft anti-spam fee twice.
+    function createIdeaWithProfile(
+        uint256 contributorFee,
+        uint256 contribution,
+        bytes calldata ideaData,
+        bytes calldata profileData
+    ) external {
+        createIdea(contributorFee, contribution, ideaData);
+        emit ProfileUpdated(msg.sender, profileData);
+    }
+
+    /// Create or update a profile while creating a solution to avoid paying `minFee` twice.
+    /// @param idea The address of the Idea contract to which this solution refers. It can be on another chain.
+    function createSolutionWithProfile(
+        address idea,
+        IERC20 fundingToken,
+        uint256 stake,
+        uint256 goal,
+        uint256 deadline,
+        uint256 contributorFee,
+        bytes calldata solutionData,
+        bytes calldata profileData
+    ) external {
+        createSolution(idea, fundingToken, stake, goal, deadline, contributorFee, solutionData);
+        emit ProfileUpdated(msg.sender, profileData);
+    }
+
     function createIdea(uint256 contributorFee, uint256 contribution, bytes calldata ideaData) public {
         Idea idea = new Idea(contributorFee, faucet);
         emit IdeaCreated(idea, msg.sender, contributorFee, contribution, ideaData);
@@ -125,32 +152,5 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
             solution.addStake(stake);
             solution.transferStake(msg.sender);
         }
-    }
-
-    /// Create or update a profile while creating an idea to avoid paying the updraft anti-spam fee twice.
-    function createIdeaWithProfile(
-        uint256 contributorFee,
-        uint256 contribution,
-        bytes calldata ideaData,
-        bytes calldata profileData
-    ) external {
-        createIdea(contributorFee, contribution, ideaData);
-        emit ProfileUpdated(msg.sender, profileData);
-    }
-
-    /// Create or update a profile while creating a solution to avoid paying `minFee` twice.
-    /// @param idea The address of the Idea contract to which this solution refers. It can be on another chain.
-    function createSolutionWithProfile(
-        address idea,
-        IERC20 fundingToken,
-        uint256 stake,
-        uint256 goal,
-        uint256 deadline,
-        uint256 contributorFee,
-        bytes calldata solutionData,
-        bytes calldata profileData
-    ) external {
-        createSolution(idea, fundingToken, stake, goal, deadline, contributorFee, solutionData);
-        emit ProfileUpdated(msg.sender, profileData);
     }
 }
