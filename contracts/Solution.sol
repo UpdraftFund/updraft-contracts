@@ -325,17 +325,21 @@ contract Solution is Ownable {
 
     /// Extend the goal, keeping the deadline the same.
     function extendGoal(uint256 goal) external onlyOwner goalReached {
-        extendGoal(goal, deadline);
+        _extendGoal(goal, deadline);
+    }
+
+    /// Extend the goal and the deadline.
+    function extendGoal(uint256 goal, uint256 deadline_) external onlyOwner goalReached {
+        _extendGoal(goal, deadline_);
     }
 
     /// Extend the goal and the deadline. Also update the Solution data.
     function extendGoal(uint256 goal, uint256 deadline_, bytes calldata solutionData) external onlyOwner goalReached {
-        extendGoal(goal, deadline_);
+        _extendGoal(goal, deadline_);
         emit SolutionUpdated(solutionData);
     }
 
-    /// Extend the goal and the deadline.
-    function extendGoal(uint256 goal, uint256 deadline_) public onlyOwner goalReached {
+    function _extendGoal(uint256 goal, uint256 deadline_) internal {
         if (goal <= fundingGoal) revert GoalMustIncrease(fundingGoal, goal);
         if (deadline_ <= block.timestamp) revert MustSetDeadlineInFuture(deadline_);
         withdrawFunds();
