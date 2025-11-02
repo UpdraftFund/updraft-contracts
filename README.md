@@ -1,5 +1,5 @@
 # Updraft smart contracts
-Updraft is a decentralized crowdfunding protocol where users can fund "Ideas" and propose "Solutions" to those ideas.
+Updraft is a decentralized crowdfunding protocol for "Ideas" and "Solutions" to those ideas.
 
 ## Protocol features
 
@@ -8,7 +8,8 @@ Updraft is a decentralized crowdfunding protocol where users can fund "Ideas" an
 * Community incentives: Contributor fees are distributed proportionally to long-term supporters
 * Cross-chain compatibility: Solutions can reference Ideas from other chains
 * Anti-spam mechanisms: Minimal fees prevent spam while keeping participation accessible
-* The protocol creates a sustainable ecosystem where good ideas get funded, solutions get developed, and long-term community members are rewarded for their continued support.
+* Funders can identify and support dependencies to create visible dependency chains.
+* Updraft creates a sustainable ecosystem where good ideas get funded, solutions get developed, and long-term community members are rewarded for their continued support.
 
 ## Mechanism
 

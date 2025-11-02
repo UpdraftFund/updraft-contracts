@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.27;
+pragma solidity ^0.8.30;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -64,7 +64,10 @@ contract Solution is Ownable {
         uint256 amount,
         uint256 totalShares,
         uint256 totalContributed,
-        uint256 totalTokens
+        uint256 totalTokens,
+        address[] dependencyAddresses,
+        uint256[] dependencyChainIds,
+        uint256[] dependencyAmounts
     );
     event PositionTransferred(
         address indexed sender,
@@ -94,6 +97,7 @@ contract Solution is Ownable {
     error WithdrawMoreThanAvailable(uint256 amount, uint256 available);
     error AlreadyRefunded();
     error ContributedBeforeGoalExtended(uint256 contributedTime, uint256 goalExtendedTime);
+    error InvalidDependencyData();
 
     modifier singlePosition(address addr) {
         uint256 positions = numPositions(addr);
@@ -200,10 +204,88 @@ contract Solution is Ownable {
         }
 
         fundingToken.safeTransferFrom(addr, address(this), originalAmount);
-        emit Contributed(addr, positionIndex, originalAmount, totalShares(), tokensContributed, totalTokens());
+        emit Contributed(
+            addr,
+            positionIndex,
+            originalAmount,
+            totalShares(),
+            tokensContributed,
+            totalTokens(),
+            new address[](0),
+            new uint256[](0),
+            new uint256[](0)
+        );
     }
 
-    function addStake(uint256 amount) external{
+    /// @notice Allows users to contribute to this Solution and log dependency funding
+    /// @dev Designed to be the first call in a Multicall batch. Creates a new position for the contributor
+    /// @param amount The amount to contribute to this Solution
+    /// @param dependencyAddresses The addresses of the Solutions that were funded by the contributor
+    /// @param dependencyChainIds The chain IDs of the Solutions that were funded by the contributor
+    /// @param dependencyAmounts The amounts that were contributed to the Solutions by the contributor
+    /// @return positionIndex will be reused as input to collectFees(), checkPosition(), and other functions
+    function contributeWithDependencies(
+        uint256 amount,
+        address[] calldata dependencyAddresses,
+        uint256[] calldata dependencyChainIds,
+        uint256[] calldata dependencyAmounts
+    ) external returns (uint256 positionIndex) {
+        if (goalFailed()) revert GoalFailed();
+
+        if (dependencyAddresses.length != dependencyChainIds.length || dependencyAddresses.length != dependencyAmounts.length) {
+            revert InvalidDependencyData();
+        }
+
+        address addr = msg.sender;
+        uint256 _contributorFee = amount * contributorFee / percentScale;
+
+        updateCyclesWithFee(_contributorFee);
+
+        uint256 originalAmount = amount;
+        uint256 lastStoredCycleIndex;
+
+        unchecked {
+        // updateCyclesAddingAmount() will always add a cycle if none exists
+            lastStoredCycleIndex = cycles.length - 1;
+
+            if (lastStoredCycleIndex > 0) {
+                // Contributor fees are only charged in cycles after the one in which the first contribution was made.
+                amount -= _contributorFee;
+            }
+        }
+
+        tokensContributed += amount;
+
+        positionsByAddress[addr].push(
+            Position({
+                contribution: amount,
+                contributionTime: block.timestamp,
+                startCycleIndex: lastStoredCycleIndex,
+                lastCollectedCycleIndex: lastStoredCycleIndex,
+                refunded: false
+            })
+        );
+
+        unchecked {
+            positionIndex = positionsByAddress[addr].length - 1;
+        }
+
+        fundingToken.safeTransferFrom(addr, address(this), originalAmount);
+
+        emit Contributed(
+            addr,
+            positionIndex,
+            originalAmount,
+            totalShares(),
+            tokensContributed,
+            totalTokens(),
+            dependencyAddresses,
+            dependencyChainIds,
+            dependencyAmounts
+        );
+    }
+
+    function addStake(uint256 amount) external {
         if (goalFailed()) revert GoalFailed();
 
         address addr = msg.sender;
@@ -216,7 +298,7 @@ contract Solution is Ownable {
         emit StakeUpdated(addr, stakes[addr], stake);
     }
 
-    function transferStake(address receiver) external{
+    function transferStake(address receiver) external {
         if (goalFailed()) revert GoalFailed();
 
         address sender = msg.sender;
@@ -380,7 +462,7 @@ contract Solution is Ownable {
     /// Withdraw all funds to owner.
     function withdrawFunds() public onlyOwner goalReached {
         uint256 availableTokens = totalTokens();
-        if(availableTokens > 0) {
+        if (availableTokens > 0) {
             withdrawFunds(msg.sender, availableTokens);
         }
     }
@@ -520,7 +602,7 @@ contract Solution is Ownable {
         uint256 lastStoredCycleIndex;
 
         unchecked {
-            // updateCyclesWithFee() will always add a cycle if none exists
+        // updateCyclesWithFee() will always add a cycle if none exists
             lastStoredCycleIndex = cycles.length - 1;
             loopIndex = position.lastCollectedCycleIndex + 1; // can't realistically overflow
         }
@@ -575,9 +657,9 @@ contract Solution is Ownable {
                 // Some cycle numbers might be skipped, so we need to accrue shares in between.
                 Cycle memory newCycle = Cycle({
                     number: currentCycleNumber_,
-                    // Keep overflow checks for unknown token operations
+                // Keep overflow checks for unknown token operations
                     shares: lastStoredCycle.shares +
-                        accrualRate * (currentCycleNumber_ - lastStoredCycleNumber) * tokensContributed / percentScale,
+                accrualRate * (currentCycleNumber_ - lastStoredCycleNumber) * tokensContributed / percentScale,
                     fees: _contributorFee,
                     hasContributions: _contributorFee > 0
                 });

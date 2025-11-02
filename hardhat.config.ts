@@ -6,12 +6,13 @@ import { etherscan } from "./apiKeys.json";
 
 const config: HardhatUserConfig = {
   solidity: {
-    version: "0.8.27",
+    version: "0.8.30",
     settings: {
       optimizer: {
         enabled: true,
-        runs: 10
-      }
+        runs: 11
+      },
+      viaIR: true
     }
   },
   etherscan: {
