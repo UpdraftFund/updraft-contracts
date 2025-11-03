@@ -27,6 +27,7 @@ contract Solution is Ownable {
     ICrowdFund public immutable crowdFund;
     IERC20 public immutable fundingToken;
     IERC20 public immutable stakingToken;
+    address public immutable fundingRecipient;
     uint256 public immutable startTime;
     uint256 public immutable cycleLength;
     uint256 public immutable accrualRate;
@@ -50,7 +51,7 @@ contract Solution is Ownable {
     mapping(address => uint256) public stakes;
 
     event FeesCollected(address indexed addr, uint256 positionIndex, uint256 amount);
-    event FundsWithdrawn(address to, uint256 amount, uint256 tokensLeft);
+    event FundsWithdrawn(uint256 amount);
     event StakeUpdated(address indexed addr, uint256 stake, uint256 totalStake);
 
     /// @param newStake The new total stake amount for the `to` address
@@ -132,6 +133,7 @@ contract Solution is Ownable {
     constructor(
         address owner,
         IERC20 fundingToken_,
+        address fundingRecipient_,
         IERC20 stakingToken_,
         uint256 goal,
         uint256 deadline_,
@@ -145,6 +147,7 @@ contract Solution is Ownable {
         fundingGoal = goal;
         deadline = deadline_;
         contributorFee = contributorFee_;
+        fundingRecipient = fundingRecipient_;
 
         cycleLength = crowdFund.cycleLength();
         accrualRate = crowdFund.accrualRate();
@@ -372,10 +375,6 @@ contract Solution is Ownable {
         split(positionIndex, numSplits - 1, position.contribution / numSplits);
     }
 
-    function withdrawFunds(address to, uint256 amount) external onlyOwner goalReached {
-        _withdrawFunds(to, amount);
-    }
-
     /// Check the number of tokens and shares for an address with only one position.
     function checkPosition(
         address addr
@@ -493,11 +492,13 @@ contract Solution is Ownable {
         emit Split(addr, positionIndex, numSplits, firstNewPositionIndex, amount, position.contribution);
     }
 
-    /// Withdraw all funds to owner.
+    /// @notice Withdraw all funds to fundingRecipient.
     function withdrawFunds() public onlyOwner goalReached {
         uint256 availableTokens = totalTokens();
         if (availableTokens > 0) {
-            _withdrawFunds(msg.sender, availableTokens);
+            tokensWithdrawn += availableTokens;
+            fundingToken.safeTransfer(fundingRecipient, availableTokens);
+            emit FundsWithdrawn(availableTokens);
         }
     }
 
@@ -567,17 +568,6 @@ contract Solution is Ownable {
         fundingGoal = goal;
         deadline = deadline_;
         emit GoalExtended(goal, deadline);
-    }
-
-    function _withdrawFunds(address to, uint256 amount) internal {
-        if (amount <= totalTokens()) {
-            // Keep overflow checks for unknown token operations
-            tokensWithdrawn += amount;
-            fundingToken.safeTransfer(to, amount);
-            emit FundsWithdrawn(to, amount, totalTokens());
-        } else {
-            revert WithdrawMoreThanAvailable(amount, totalTokens());
-        }
     }
 
     /// @notice Updates cycles with new fees

@@ -76,7 +76,7 @@ const deploySolutionAndGetContract = async () => {
   // Approve the solution contract to spend UPD directly
   await upd.write.approve([contract.address, parseUnits('100000000000', 18)]);
 
-  return { contract, upd, updraft, idea };
+  return { contract, upd, updraft, idea, deployerAddress: await walletAddress() };
 };
 
 // Helper function to mimic the contract's max function
@@ -728,7 +728,7 @@ describe('Solution Contract', () => {
 
   describe('Fund Withdrawal', () => {
     it('should allow the owner to withdraw funds after goal is reached', async () => {
-      const { contract, upd } = await loadFixture(deploySolutionAndGetContract);
+      const { contract, upd, deployerAddress } = await loadFixture(deploySolutionAndGetContract);
 
       // Contribute enough to reach the goal
       const goal = await contract.read.fundingGoal();
@@ -736,53 +736,26 @@ describe('Solution Contract', () => {
       await upd.write.approve([contract.address, contribution]);
       await contract.write.contribute([contribution]);
 
-      // Get recipient wallet
-      const [, recipient] = await hre.viem.getWalletClients();
-      const recipientAddress = recipient.account.address;
-
       // Get initial balance
-      const initialBalance = await upd.read.balanceOf([recipientAddress]);
+      const initialBalance = await upd.read.balanceOf([deployerAddress]);
 
       // Withdraw funds
-      const withdrawAmount = parseUnits('1000', 18);
-      await contract.write.withdrawFunds([recipientAddress, withdrawAmount]);
+      const withdrawAmount = await contract.read.totalTokens();
+      await contract.write.withdrawFunds();
 
       // Verify balance increased
-      const finalBalance = await upd.read.balanceOf([recipientAddress]);
+      const finalBalance = await upd.read.balanceOf([deployerAddress]);
       expect(finalBalance).to.equal(initialBalance + withdrawAmount);
 
       // Verify tokensWithdrawn was updated
       expect(await contract.read.tokensWithdrawn()).to.equal(withdrawAmount);
     });
 
-    it('should not allow withdrawing more than available', async () => {
-      const { contract, upd } = await loadFixture(deploySolutionAndGetContract);
-
-      // Contribute enough to reach the goal
-      const goal = await contract.read.fundingGoal();
-      const contribution = goal;
-      await upd.write.approve([contract.address, contribution]);
-      await contract.write.contribute([contribution]);
-
-      // Get recipient wallet
-      const [, recipient] = await hre.viem.getWalletClients();
-      const recipientAddress = recipient.account.address;
-
-      // Try to withdraw more than available
-      const withdrawAmount = goal + parseUnits('1000', 18);
-      await expect(contract.write.withdrawFunds([recipientAddress, withdrawAmount])).to.be.rejected;
-    });
-
     it('should not allow withdrawing funds before goal is reached', async () => {
       const { contract, upd } = await loadFixture(deploySolutionAndGetContract);
 
-      // Get recipient wallet
-      const [, recipient] = await hre.viem.getWalletClients();
-      const recipientAddress = recipient.account.address;
-
       // Try to withdraw funds before goal is reached
-      const withdrawAmount = parseUnits('1000', 18);
-      await expect(contract.write.withdrawFunds([recipientAddress, withdrawAmount])).to.be.rejected;
+      await expect(contract.write.withdrawFunds()).to.be.rejected;
     });
 
     it('should not allow non-owners to withdraw funds', async () => {

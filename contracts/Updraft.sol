@@ -33,6 +33,7 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
         address indexed creator,
         address indexed idea,
         IERC20 fundingToken,
+        address fundingRecipient,
         uint256 stake,
         uint256 goal,
         uint256 deadline,
@@ -133,12 +134,47 @@ contract Updraft is Ownable(msg.sender), ICrowdFund {
         uint256 contributorFee,
         bytes calldata solutionData
     ) public {
-        Solution solution = new Solution(msg.sender, fundingToken, feeToken, goal, deadline, contributorFee);
+        Solution solution = new Solution(msg.sender, fundingToken, msg.sender, feeToken, goal, deadline, contributorFee);
         emit SolutionCreated(
             solution,
             msg.sender,
             idea,
             fundingToken,
+            msg.sender, // by default, the funding recipient is the Solution drafter
+            stake,
+            goal,
+            deadline,
+            contributorFee,
+            solutionData
+        );
+        feeToken.safeTransferFrom(msg.sender, faucet, minFee);
+        if (stake > 0){
+            feeToken.safeTransferFrom(msg.sender, address(this), stake);
+            feeToken.approve(address(solution), stake);
+            solution.addStake(stake);
+            solution.transferStake(msg.sender);
+        }
+    }
+
+    /// @param idea The address of the Idea contract to which this solution refers. It can be on another chain.
+    /// @param fundingRecipient The address that will receive funds from this Solution.
+    function createSolution(
+        address idea,
+        IERC20 fundingToken,
+        address fundingRecipient,
+        uint256 stake,
+        uint256 goal,
+        uint256 deadline,
+        uint256 contributorFee,
+        bytes calldata solutionData
+    ) public {
+        Solution solution = new Solution(msg.sender, fundingToken, fundingRecipient, feeToken, goal, deadline, contributorFee);
+        emit SolutionCreated(
+            solution,
+            msg.sender,
+            idea,
+            fundingToken,
+            fundingRecipient,
             stake,
             goal,
             deadline,
